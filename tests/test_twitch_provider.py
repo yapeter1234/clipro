@@ -47,7 +47,7 @@ def test_create_vod_clip_uses_editor_endpoint_and_parameters():
             await http_client.aclose()
 
     asyncio.run(run())
-    assert "/videos/clips?" in seen["url"]
+    assert seen["url"].startswith("https://api.twitch.test/helix/videos/clips?")
     assert "editor_id=editor-1" in seen["url"]
     assert "vod_offset=120" in seen["url"]
     assert seen["authorization"] == "Bearer test-token"
@@ -124,5 +124,18 @@ def test_api_error_does_not_expose_access_token():
             assert "test-token" not in str(exc.value)
         finally:
             await http_client.aclose()
+
+    asyncio.run(run())
+
+
+def test_client_can_create_and_close_its_own_http_client():
+    async def run():
+        client = TwitchHelixClient(
+            client_id="test-client",
+            user_access_token="test-token",
+        )
+        assert client.http_client is not None
+        assert client._owns_client is True
+        await client.aclose()
 
     asyncio.run(run())
