@@ -1,20 +1,21 @@
-"""Campaign eligibility gates for the DiegoLoveless GTA 6 pilot.
+"""Campaign gates: generic franchise checks plus campaign-specific constraints.
 
-Stream metadata is a first-pass gate. A later video inspection stage must still
-verify that frames show GTA 6 gameplay and that the creator is visible.
+Stream metadata is only a preliminary gate. The final media inspection must
+verify what is visibly happening in the video and whether the creator appears.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
 
 DIEGO_TWITCH_LOGIN = "diegoloveless"
-GTA_VI_GAME_NAME_ALIASES = {
-    "grand theft auto vi",
-    "gta vi",
-    "gta 6",
-}
+
+_GTA_CATEGORY_RE = re.compile(
+    r"^(?:grand theft auto(?:\s+(?:iii|iv|v|vi|online|san andreas|vice city))?|gta\s*(?:[1-6]|iii|iv|v|vi|online))$",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,12 +24,24 @@ class EligibilityResult:
     reasons: tuple[str, ...]
 
 
-def evaluate_diego_gta6_stream(
+def is_grand_theft_auto_category(game_name: str | None) -> bool:
+    """Return True only for a recognized Grand Theft Auto game/category name."""
+    if not game_name:
+        return False
+    normalized = " ".join(game_name.strip().lower().split())
+    return bool(_GTA_CATEGORY_RE.fullmatch(normalized))
+
+
+def evaluate_diego_gta_stream(
     stream: dict[str, Any] | None,
     *,
     expected_login: str = DIEGO_TWITCH_LOGIN,
 ) -> EligibilityResult:
-    """Require the correct live broadcaster and GTA VI category."""
+    """Require Diego's Twitch channel to be live in a Grand Theft Auto category.
+
+    This is a metadata check only. A separate visual gate must verify that the
+    submitted media actually shows Diego playing the relevant GTA title.
+    """
     reasons: list[str] = []
     if not stream:
         return EligibilityResult(False, ("stream is offline or unavailable",))
@@ -40,8 +53,17 @@ def evaluate_diego_gta6_stream(
     if str(stream.get("type") or "").lower() != "live":
         reasons.append("stream is not marked live")
 
-    game_name = " ".join(str(stream.get("game_name") or "").strip().lower().split())
-    if game_name not in GTA_VI_GAME_NAME_ALIASES:
-        reasons.append("stream category is not Grand Theft Auto VI")
+    game_name = str(stream.get("game_name") or "")
+    if not is_grand_theft_auto_category(game_name):
+        reasons.append("stream category is not a recognized Grand Theft Auto title")
 
     return EligibilityResult(not reasons, tuple(reasons))
+
+
+def evaluate_diego_gta6_stream(
+    stream: dict[str, Any] | None,
+    *,
+    expected_login: str = DIEGO_TWITCH_LOGIN,
+) -> EligibilityResult:
+    """Backward-compatible alias; campaign rules now use the GTA franchise."""
+    return evaluate_diego_gta_stream(stream, expected_login=expected_login)
