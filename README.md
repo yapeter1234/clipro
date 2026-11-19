@@ -62,6 +62,10 @@ See [ROADMAP.md](docs/ROADMAP.md) and [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 - Campaign-specific rules: [DiegoLoveless GTA profile](docs/campaigns/diego-loveless-gta6.md)
 - Source policy: [Source acquisition guide](docs/INGESTION_NO_OBS.md)
+- Browser capture steps: [Twitch, Kick and YouTube](docs/SOURCE_CAPTURE_GUIDE.md)
+- Generic campaign template: [config/campaigns/template.json](config/campaigns/template.json)
+- Generic streamer profile: [config/streamers/template.json](config/streamers/template.json)
+- Streamer/brainrot style: [config/styles/streamer-brainrot.json](config/styles/streamer-brainrot.json)
 - Editing rules: [Editing style guide](docs/EDITING_STYLE_GUIDE.md)
 - Security: [Security requirements](docs/SECURITY.md)
 - Timeline schema: [packages/timeline/schema.json](packages/timeline/schema.json)
