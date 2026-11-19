@@ -4,7 +4,8 @@ on:
   push:
     paths:
       - "packages/timeline/**"
-      - "tests/test_timeline_schema.py"
+      - "services/api/**"
+      - "tests/**"
       - "requirements-dev.txt"
       - ".github/workflows/validate-timeline.yml"
   pull_request:
@@ -31,7 +32,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install validation dependencies
-        run: python -m pip install --upgrade pip jsonschema pytest
+        run: python -m pip install --upgrade pip jsonschema pytest httpx
 
       - name: Validate timeline schema and example
-        run: python -m pytest -q tests/test_timeline_schema.py
+        run: python -m pytest -q tests
