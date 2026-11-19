@@ -1,0 +1,63 @@
+# DiegoLoveless GTA 6 campaign profile
+
+## Confirmed from the user
+
+- Creator: DiegoLoveless
+- Source channel: https://twitch.tv/diegolovelove
+- Source platform: Twitch
+- Campaign topic: GTA 6 / Grand Theft Auto VI
+- Required content: every clip must feature Diego playing GTA 6.
+- Preferred moments: funny reactions, insane gameplay and other genuinely entertaining/viral moments.
+- Required CTA: a clear call to action directing viewers to Diego's Twitch channel.
+- Preferred narration/caption language: English only.
+- Acquisition constraint: the clipper is not the channel owner and Diego will not provide a separate OBS output.
+- Publishing constraint: Clipro must never publish. It produces an export for the clipper to approve, download and publish manually.
+
+## Campaign rules source
+
+The user supplied this Notion link as the full campaign brief:
+
+https://app.notion.com/p/DiegoLoveless-GTA-6-Full-Rules-Brief-4038e33583238129bbc3f689497ad8db
+
+The page could not be retrieved through the available browser integration. Its full rule text is therefore **not yet verified in this repository**. Do not invent or import rules from other Diego campaigns.
+
+Before enabling production clipping, import the full Notion brief and verify:
+- allowed source material (live stream, VOD, native Twitch Clips, specific VOD date window);
+- exact CTA wording and placement;
+- required logo/overlay and whether it must remain throughout;
+- permitted output platforms and posting cadence;
+- duration, aspect ratio, caption, music and voiceover rules;
+- prohibited topics, words, imagery, edits or music;
+- whether AI narration, heavy editing, external b-roll or transitions are permitted;
+- minimum views, audience/geography requirements, analytics evidence and submission deadline;
+- campaign cap, budget, rate and payout validation details.
+
+Any rule conflict must be resolved in favor of the current campaign brief and the campaign platform's current terms. Older Diego campaigns may be about different games and are not a valid substitute.
+
+## Editing profile (user preference, subject to campaign rules)
+
+- Full short-form editorial treatment rather than a raw crop.
+- Context-preserving hook, purposeful transitions and motion graphics.
+- Accurate, word-synchronized English captions.
+- Optional original English narrator voiceover if the moment benefits from context.
+- Reframing/gameplay and creator visibility must remain clear.
+- Licensed music and sound effects only.
+- CTA to https://twitch.tv/diegolovelove.
+- No creator voice cloning.
+- No misleading chronology, fabricated dialogue or fake gameplay.
+- Final review and manual publication by the user only.
+
+The editing preference is not permission to violate a campaign rule. For example, if the brief prohibits overly polished ads or AI voiceovers, the renderer must obey the campaign and disable those features for this profile.
+
+## Public listing cross-check (not a substitute for the brief)
+
+On 19 November 2026, a public Content Rewards discovery result listed a campaign titled “DiegoLoveless GTA 6 Clipping”. A separate older Diego campaign was titled “DiegoLoveless Marvel Rivals Clipping”. Third-party campaign trackers expose details from the older campaign that are not necessarily valid for the GTA 6 campaign.
+
+The implementation must bind to the exact campaign selected by the user and must not import Marvel Rivals rules into this profile.
+
+## Current blockers
+
+1. Full Notion rules text needs to be pasted or exported into the repository.
+2. Confirm whether Diego can add the user's Twitch account as an Editor. Twitch's official Editor role permits downloading past broadcasts and managing clips, but it also grants broader channel-dashboard powers.
+3. If Editor access is declined, obtain the authorized VOD/clip media through an approved campaign download or file-supply workflow.
+4. The two Instagram reference links could not be inspected through the available browser integration. Provide video files, screen recordings, or accessible alternate links before finalizing the visual template.
