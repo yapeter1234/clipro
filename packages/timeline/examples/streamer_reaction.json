@@ -1,0 +1,241 @@
+{
+  "schema_version": "1.0.0",
+  "project_id": "example-reaction-001",
+  "name": "Streamer reaction — vertical short",
+  "created_at": "2026-11-19T22:00:00Z",
+  "source_context": {
+    "origin": "live_stream",
+    "platform": "twitch",
+    "channel_url": "https://www.twitch.tv/example_creator",
+    "source_start_ms": 1234000,
+    "authorization_id": "authorization-record-example"
+  },
+  "assets": [
+    {
+      "asset_id": "video-main",
+      "kind": "video",
+      "mime_type": "video/mp4",
+      "storage_key": "workspace/example/source/main.mp4",
+      "duration_ms": 90000,
+      "width": 1920,
+      "height": 1080,
+      "rights_status": "creator_authorized",
+      "rights_notes": "Illustrative placeholder; replace with verified authorization."
+    },
+    {
+      "asset_id": "voiceover-hook",
+      "kind": "audio",
+      "mime_type": "audio/wav",
+      "storage_key": "workspace/example/audio/hook.wav",
+      "duration_ms": 2700,
+      "rights_status": "user_owned",
+      "rights_notes": "Original synthetic narrator voice; not a creator voice clone."
+    },
+    {
+      "asset_id": "music-bed",
+      "kind": "audio",
+      "mime_type": "audio/wav",
+      "storage_key": "workspace/example/audio/music.wav",
+      "duration_ms": 60000,
+      "rights_status": "licensed",
+      "rights_notes": "Illustrative placeholder; replace with a track licensed for social/commercial use."
+    }
+  ],
+  "tracks": [
+    {
+      "track_id": "video-1",
+      "kind": "video",
+      "name": "Main stream footage",
+      "items": [
+        {
+          "item_id": "clip-hook-preview",
+          "type": "media_clip",
+          "asset_id": "video-main",
+          "timeline_start_ms": 0,
+          "source_in_ms": 31000,
+          "source_out_ms": 35500,
+          "playback_rate": 1,
+          "gain_db": 0,
+          "transform": {
+            "fit": "cover",
+            "scale": 1.08
+          },
+          "effects": [
+            {
+              "type": "punch_in",
+              "start_ms": 0,
+              "duration_ms": 450,
+              "parameters": {
+                "from_scale": 1,
+                "to_scale": 1.12,
+                "ease": "ease_out"
+              }
+            }
+          ],
+          "transition_out": {
+            "type": "cut",
+            "duration_ms": 0
+          },
+          "role": "main_footage"
+        },
+        {
+          "item_id": "clip-main-moment",
+          "type": "media_clip",
+          "asset_id": "video-main",
+          "timeline_start_ms": 4500,
+          "source_in_ms": 27000,
+          "source_out_ms": 57000,
+          "playback_rate": 1,
+          "gain_db": 0,
+          "transform": {
+            "fit": "blur_background",
+            "scale": 1
+          },
+          "effects": [],
+          "transition_in": {
+            "type": "crossfade",
+            "duration_ms": 300,
+            "easing": "ease_in_out"
+          },
+          "role": "gameplay"
+        }
+      ]
+    },
+    {
+      "track_id": "voiceover-1",
+      "kind": "audio",
+      "name": "Original narrator",
+      "items": [
+        {
+          "item_id": "vo-hook",
+          "type": "media_clip",
+          "asset_id": "voiceover-hook",
+          "timeline_start_ms": 0,
+          "source_in_ms": 0,
+          "source_out_ms": 2700,
+          "playback_rate": 1,
+          "gain_db": 0,
+          "role": "voiceover"
+        }
+      ]
+    },
+    {
+      "track_id": "music-1",
+      "kind": "audio",
+      "name": "Licensed music bed",
+      "items": [
+        {
+          "item_id": "music-under",
+          "type": "media_clip",
+          "asset_id": "music-bed",
+          "timeline_start_ms": 0,
+          "source_in_ms": 0,
+          "source_out_ms": 34500,
+          "playback_rate": 1,
+          "gain_db": -24,
+          "role": "music"
+        }
+      ]
+    },
+    {
+      "track_id": "captions-1",
+      "kind": "caption",
+      "name": "English captions",
+      "items": [
+        {
+          "item_id": "caption-1",
+          "type": "caption_cue",
+          "start_ms": 0,
+          "end_ms": 2700,
+          "text": "WAIT UNTIL YOU SEE THIS",
+          "style_id": "bold_kinetic",
+          "position": "center",
+          "words": [
+            {
+              "text": "WAIT",
+              "start_ms": 0,
+              "end_ms": 450,
+              "emphasis": true
+            },
+            {
+              "text": "UNTIL",
+              "start_ms": 450,
+              "end_ms": 900,
+              "emphasis": false
+            },
+            {
+              "text": "YOU",
+              "start_ms": 900,
+              "end_ms": 1250,
+              "emphasis": false
+            },
+            {
+              "text": "SEE",
+              "start_ms": 1250,
+              "end_ms": 1900,
+              "emphasis": true
+            },
+            {
+              "text": "THIS",
+              "start_ms": 1900,
+              "end_ms": 2700,
+              "emphasis": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "track_id": "overlay-1",
+      "kind": "overlay",
+      "name": "Context label",
+      "items": [
+        {
+          "item_id": "creator-label",
+          "type": "overlay",
+          "start_ms": 4500,
+          "end_ms": 9000,
+          "content": "LIVE REACTION",
+          "animation_in": "slide_up",
+          "animation_out": "fade",
+          "position": {
+            "anchor": "top_center"
+          },
+          "style": {
+            "template": "pill",
+            "emphasis": "medium"
+          }
+        }
+      ]
+    }
+  ],
+  "captions": {
+    "language": "en",
+    "style_id": "bold_kinetic",
+    "safe_area": {
+      "top": 0.1,
+      "right": 0.08,
+      "bottom": 0.2,
+      "left": 0.08
+    }
+  },
+  "audio_mix": {
+    "target_lufs": -14,
+    "true_peak_db": -1,
+    "ducking_enabled": true
+  },
+  "export": {
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "video_codec": "h264",
+    "audio_codec": "aac",
+    "container": "mp4",
+    "target_lufs": -14,
+    "true_peak_db": -1
+  },
+  "metadata": {
+    "example_only": true,
+    "publishing_enabled": false
+  }
+}
