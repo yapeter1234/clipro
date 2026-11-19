@@ -32,6 +32,13 @@ def test_youtube_requires_authorized_source_file_for_custom_editing():
     assert policy.acquisition_mode is AcquisitionMode.AUTHORIZED_SOURCE_FILE
 
 
+def test_full_authorized_video_upload_works_for_any_platform():
+    for platform in Platform:
+        policy = get_source_policy(platform, SourceKind.UPLOADED_VIDEO)
+        assert policy.acquisition_mode is AcquisitionMode.AUTHORIZED_SOURCE_FILE
+        assert policy.requires_file_upload is True
+
+
 def test_twitch_manual_clip_file_is_accepted():
     result = validate_source_submission(
         SourceSubmission(
@@ -89,3 +96,31 @@ def test_youtube_clip_link_without_file_is_rejected():
     )
     assert result.accepted is False
     assert any("reference only" in item for item in result.errors)
+
+
+def test_authorized_full_vod_upload_is_accepted():
+    result = validate_source_submission(
+        SourceSubmission(
+            platform=Platform.TWITCH,
+            source_kind=SourceKind.UPLOADED_VIDEO,
+            acquisition_mode=AcquisitionMode.AUTHORIZED_SOURCE_FILE,
+            file_uploaded=True,
+            source_permission_confirmed=True,
+        )
+    )
+    assert result.accepted is True
+    assert result.warnings
+
+
+def test_unconfirmed_source_permissions_are_rejected():
+    result = validate_source_submission(
+        SourceSubmission(
+            platform=Platform.KICK,
+            source_kind=SourceKind.LIVE_STREAM,
+            acquisition_mode=AcquisitionMode.VIEWER_NATIVE_CLIP_MANUAL_DOWNLOAD,
+            file_uploaded=True,
+            source_permission_confirmed=False,
+        )
+    )
+    assert result.accepted is False
+    assert any("authorizes editing" in item for item in result.errors)
