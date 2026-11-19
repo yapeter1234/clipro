@@ -60,7 +60,7 @@ def test_gta_category_aliases_are_normalized():
     assert is_grand_theft_auto_category("GTA 6")
     assert is_grand_theft_auto_category("  grand theft auto online  ")
     assert is_grand_theft_auto_category("gta v")
-    assert not is_grand_theft_auto_category("Grand Theft Auto RP Servers") is False
+    assert not is_grand_theft_auto_category("Grand Theft Auto RP Servers")
 
 
 def test_backward_compatible_function_name_still_works():
