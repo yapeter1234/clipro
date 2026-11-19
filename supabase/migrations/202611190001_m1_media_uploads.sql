@@ -17,7 +17,6 @@ create table if not exists public.workspace_memberships (
     created_at timestamptz not null default now(),
     primary key (workspace_id, user_id)
 );
-
 create index if not exists workspace_memberships_user_idx
     on public.workspace_memberships(user_id);
 
@@ -50,7 +49,6 @@ create table if not exists public.media_assets (
     created_at timestamptz not null default now(),
     completed_at timestamptz
 );
-
 create index if not exists media_assets_workspace_created_idx
     on public.media_assets(workspace_id, created_at desc);
 create index if not exists media_assets_state_idx
@@ -69,11 +67,9 @@ create table if not exists public.upload_sessions (
     updated_at timestamptz not null default now(),
     completed_at timestamptz
 );
-
 create index if not exists upload_sessions_expiry_idx
     on public.upload_sessions(status, expires_at);
 
--- New signup users automatically receive an isolated personal workspace.
 create or replace function public.clipro_create_personal_workspace()
 returns trigger
 language plpgsql
@@ -96,7 +92,6 @@ begin
 
     insert into public.workspace_memberships(workspace_id, user_id, role)
     values (new_workspace_id, new.id, 'owner');
-
     return new;
 end;
 $$;
@@ -106,7 +101,7 @@ create trigger on_auth_user_created_clipro_workspace
 after insert on auth.users
 for each row execute procedure public.clipro_create_personal_workspace();
 
--- Backfill personal workspaces for users created before this migration.
+-- Backfill accounts created before this migration is applied.
 do $$
 declare
     auth_user record;
@@ -136,6 +131,23 @@ begin
 end;
 $$;
 
+-- SECURITY DEFINER avoids recursive RLS evaluation on workspace_memberships.
+create or replace function public.clipro_is_workspace_member(target_workspace uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+set row_security = off
+as $$
+    select exists (
+        select 1 from public.workspace_memberships wm
+        where wm.workspace_id = target_workspace and wm.user_id = auth.uid()
+    );
+$$;
+revoke all on function public.clipro_is_workspace_member(uuid) from public;
+grant execute on function public.clipro_is_workspace_member(uuid) to authenticated;
+
 alter table public.workspaces enable row level security;
 alter table public.workspace_memberships enable row level security;
 alter table public.media_assets enable row level security;
@@ -144,37 +156,22 @@ alter table public.upload_sessions enable row level security;
 drop policy if exists "members can read workspaces" on public.workspaces;
 create policy "members can read workspaces" on public.workspaces
 for select to authenticated
-using (exists (
-    select 1 from public.workspace_memberships wm
-    where wm.workspace_id = workspaces.workspace_id and wm.user_id = auth.uid()
-));
+using (public.clipro_is_workspace_member(workspace_id));
 
 drop policy if exists "members can read memberships" on public.workspace_memberships;
 create policy "members can read memberships" on public.workspace_memberships
 for select to authenticated
-using (
-    exists (
-        select 1 from public.workspace_memberships self_membership
-        where self_membership.workspace_id = workspace_memberships.workspace_id
-          and self_membership.user_id = auth.uid()
-    )
-);
+using (public.clipro_is_workspace_member(workspace_id));
 
 drop policy if exists "members can read media assets" on public.media_assets;
 create policy "members can read media assets" on public.media_assets
 for select to authenticated
-using (exists (
-    select 1 from public.workspace_memberships wm
-    where wm.workspace_id = media_assets.workspace_id and wm.user_id = auth.uid()
-));
+using (public.clipro_is_workspace_member(workspace_id));
 
 drop policy if exists "members can read upload sessions" on public.upload_sessions;
 create policy "members can read upload sessions" on public.upload_sessions
 for select to authenticated
-using (exists (
-    select 1 from public.workspace_memberships wm
-    where wm.workspace_id = upload_sessions.workspace_id and wm.user_id = auth.uid()
-));
+using (public.clipro_is_workspace_member(workspace_id));
 
 grant select on public.workspaces, public.workspace_memberships,
     public.media_assets, public.upload_sessions to authenticated;
