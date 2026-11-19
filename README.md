@@ -1,109 +1,71 @@
 # Clipro
 
-AI-assisted livestream clipping and short-form video production studio.
+**Clipro is a multi-streamer, multi-platform AI clipping and short-form video editing studio.**
 
-Clipro monitors one authorized live stream at a time, detects promising moments, creates fully edited vertical videos, and places every result in a human approval queue. A reusable timeline/rendering engine will later support ordinary uploaded-video editing as well as livestream-derived clips.
+It accepts native clips captured from live streams or past broadcasts, plus creator/campaign-authorized uploaded videos. It analyzes the footage, selects or improves moments, creates a fully edited short-form video, and returns it to the user for review and manual publishing.
 
-## Product principles
+Clipro is not a Diego-only tool. DiegoLoveless's Twitch GTA campaign is the first campaign profile used to validate the workflow.
 
-- **Authorized media only:** use creator-owned streams, explicit creator permission, or another clearly licensed input. Public chat access is not permission to download or commercially reuse a broadcast.
-- **Human approval before publishing:** the system may detect, edit, render and prepare posts, but it must never publish without an explicit user approval action.
-- **Video access is separate from platform events:** platform APIs provide live status and chat/event metadata; raw video ingestion must use an authorized source feed or a documented platform capability.
-- **Editorial quality over effects volume:** transitions, motion graphics, narration, captions, sound design and music are selected to support the story—not added indiscriminately.
-- **One reusable editing engine:** live clips and future manually uploaded videos use the same project/timeline schema and renderer.
-- **Free-first and observable:** prefer open-source components and local inference; expose resource usage, processing time and estimated costs.
+## Product workflow
 
-## Planned stack
+1. Select a streamer and optional campaign/style profile.
+2. Choose source platform: Twitch, Kick or YouTube.
+3. Choose source type: live stream, past broadcast/VOD or uploaded video.
+4. Create/download a supported native clip or provide an authorized video file.
+5. Upload the source file in the browser.
+6. Clipro analyzes, selects moments, writes an edit plan, creates the video and performs quality checks.
+7. User previews, approves, downloads and publishes manually.
 
-| Layer | Planned technology |
-|---|---|
-| Cloud execution | Modal Functions and Sandboxes |
-| Backend API | Python, FastAPI |
-| Live video ingest | MediaMTX + FFmpeg, behind an authenticated ingress/relay |
-| Platform adapters | Twitch Helix/EventSub, Kick Developer API/webhooks, YouTube Data/Live Streaming APIs |
-| Speech transcription | faster-whisper |
-| Voice activity detection | Silero VAD |
-| Video analysis | OpenCV + selected-frame vision model |
-| Editorial planning | Provider-agnostic structured JSON; local model first, optional paid API |
-| Narration | Kokoro or another suitably licensed TTS engine |
-| Motion graphics | Remotion |
-| Media rendering | FFmpeg |
-| Persistent metadata | SQLite for MVP; upgrade path to managed Postgres |
-| Artifact storage | Modal Volume for MVP; object storage adapter for production |
-| Review UI | Next.js |
-| Authentication | Dashboard session auth; platform OAuth stored server-side only |
+**No automatic publishing.** Clipro does not post videos to TikTok, Instagram, YouTube or any other social platform.
 
-This stack is a proposal, not an assertion that every component is already integrated. The live ingest/network path and platform-specific permissions are explicit technical validation gates.
+## Source acquisition rules
+
+- Twitch: logged-in viewers can create clips from live streams and VODs (5–60 seconds) when channel settings allow it; they can download clips they created from Clips Manager.
+- Kick: viewers can create clips from live streams and VODs (10–180 seconds) and download clips they created.
+- YouTube: Clips are public 5–60-second references/loops, not a general MP4 export. Live Clips have DVR and archival availability limits. For custom editing, upload an authorized creator/campaign source file.
+- A public stream URL is not treated as a downloadable video file.
+- Full VOD downloads from another creator are not assumed or attempted.
+- Direct creator relay is an optional future mode, not required for the first pilot.
 
 ## Editing output
 
-The first rendering profile targets 9:16 vertical video (1080x1920), with source-matched or 30 fps output where appropriate. A rendered clip can include:
+Target profile: 9:16, 1080x1920, with source-matched or 30 fps output where appropriate. The editor can add:
+- context-preserving hooks and story structure;
+- accurate word-synchronized captions;
+- kinetic text and campaign CTA overlays;
+- gameplay/facecam layouts and reframing;
+- purposeful transitions, zooms, punch-ins and motion graphics;
+- optional original narrator voiceover;
+- licensed music and sound effects;
+- audio ducking, normalization and quality checks.
 
-- A context-preserving opening hook
-- Dynamic, word-synchronized captions and emphasis
-- Gameplay/facecam layouts and subject-aware reframing
-- Purposeful cuts, zooms, punch-ins, wipes or other template-driven transitions
-- Optional original narrator voiceover, separate from the streamer's voice
-- Licensed or user-provided background music and sound effects
-- Voice/music ducking, loudness normalization and audio quality checks
-- Endings that preserve the payoff, plus optional campaign-specific CTA
-- Platform-specific safe zones and export presets
+The editing engine is source-agnostic. The future manual timeline editor will use the same timeline project schema and renderer.
 
-No effect should be added merely for decoration. The editorial plan must preserve meaning and context.
+## Planned stack
 
-## Initial milestone
+| Layer | Technology |
+|---|---|
+| Cloud execution | Modal |
+| Backend | Python, FastAPI |
+| Browser UI | Next.js |
+| Media analysis | FFmpeg/ffprobe, OpenCV, faster-whisper, Silero VAD |
+| Editorial plan | Provider-neutral structured JSON; local model first |
+| Voiceover | Kokoro or another appropriately licensed TTS model |
+| Motion graphics | Remotion |
+| Rendering | FFmpeg |
+| Metadata | PostgreSQL when multi-user; SQLite for local prototype only |
+| Media artifacts | Object storage abstraction / Modal Volume for temporary worker files |
 
-**M0 — repository and architecture scaffold**
+## Development status
 
-1. Define the timeline project schema and state machine.
-2. Create a provider-neutral media ingestion interface.
-3. Create platform adapter interfaces (not undocumented stream extractors).
-4. Build a deterministic render pipeline using a supplied local test file.
-5. Add a review queue; publishing remains disabled.
+See [ROADMAP.md](docs/ROADMAP.md) and [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-**M1 — authorized Twitch no-OBS pilot**
-
-1. Confirm the user has been added as a channel Editor by Diego, if Diego agrees to the Editor role's broader channel permissions.
-2. Authorize Clipro with the user's Twitch OAuth token and `editor:manage:clips` scope.
-3. Detect stream state and chat/events through supported Twitch APIs.
-4. Use Create Clip From VOD for candidate timestamps in the active broadcast VOD; poll for creation and download through Get Clips Download.
-5. Pass the authorized clip media into the shared editorial/render engine.
-6. Render one complete, polished short and return it for approval.
-
-If Editor authorization is not available, use only campaign-authorized clip files/VOD excerpts supplied by Diego or another documented permitted path. Do not use undocumented player URL extraction.
-
-Kick and YouTube adapters follow after the common ingest/render path is proven. Platform-specific capabilities and permissions must be validated independently.
-
-## Repository map (planned)
-
-```
-apps/
-  web/                  # Next.js review dashboard
-services/
-  api/                  # FastAPI control plane
-  worker/                # detection and render orchestration
-packages/
-  timeline/              # shared edit/timeline schema
-  renderer/              # Remotion compositions and FFmpeg pipeline
-  platform-adapters/     # Twitch, Kick, YouTube metadata/chat adapters
-infra/
-  modal/                 # Modal app definitions and deployment config
-docs/
-  ARCHITECTURE.md
-  ROADMAP.md
-  SECURITY.md
-```
-
-## What is deliberately out of scope for the first pilot
-
-- Monitoring multiple streams simultaneously
-- Automatic publication to social platforms
-- Undocumented scraping or bypassing access restrictions
-- Voice cloning of streamers
-- Full multi-track manual editor UI
-
-These can be considered only after the one-stream authorized-input workflow works reliably.
+- Campaign-specific rules: [DiegoLoveless GTA profile](docs/campaigns/diego-loveless-gta6.md)
+- Source policy: [Source acquisition guide](docs/INGESTION_NO_OBS.md)
+- Editing rules: [Editing style guide](docs/EDITING_STYLE_GUIDE.md)
+- Security: [Security requirements](docs/SECURITY.md)
+- Timeline schema: [packages/timeline/schema.json](packages/timeline/schema.json)
 
 ## License and third-party code
 
-Clipro is a new project. Any code reused from third-party repositories must be reviewed file-by-file, preserve applicable license notices, and be recorded in a third-party notices file. A tool's MIT license does not remove platform terms, media rights, model/voice licenses, or music rights obligations.
+Clipro is a new implementation. Any reused third-party code must be reviewed file-by-file, retain required license notices and be recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Platform Terms, media permissions, model/voice licenses and music/SFX rights remain separate requirements.
