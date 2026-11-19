@@ -1,0 +1,55 @@
+{
+  "campaign_id": "campaign-template",
+  "profile_version": "0.1.0",
+  "creator": {
+    "display_name": "",
+    "platform": "twitch",
+    "channel_login": "",
+    "channel_url": ""
+  },
+  "source_policy": {
+    "allowed_platforms": [
+      "twitch",
+      "kick",
+      "youtube"
+    ],
+    "allowed_source_types": [
+      "live_stream",
+      "past_broadcast",
+      "uploaded_video"
+    ],
+    "acquisition_mode": "manual_platform_clip_or_authorized_upload",
+    "file_upload_required": true,
+    "screen_recordings_allowed": false
+  },
+  "content_rules": {
+    "allowed_topics": [],
+    "required_creator_visible": false,
+    "prohibited_topics": [],
+    "require_clear_hook_and_payoff": true
+  },
+  "output": {
+    "language": "en",
+    "style": "streamer_brainrot",
+    "cta_required": false,
+    "required_cta_destination": null,
+    "required_hashtags": [],
+    "optional_hashtags": [],
+    "dynamic_captions": true,
+    "purposeful_transitions": true,
+    "motion_graphics": true,
+    "optional_original_voiceover": true,
+    "licensed_music_only": true,
+    "licensed_sound_effects_only": true,
+    "creator_voice_cloning": false
+  },
+  "publishing": {
+    "automatic_publishing": false,
+    "manual_user_publishing_only": true
+  },
+  "analytics_requirements": {
+    "min_engagement_rate": null,
+    "min_tier1_audience_share": null,
+    "minimum_post_live_days": null
+  }
+}
