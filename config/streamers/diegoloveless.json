@@ -1,0 +1,35 @@
+{
+  "streamer_id": "diegoloveless",
+  "display_name": "DiegoLoveless",
+  "primary_platform": "twitch",
+  "channel_url": "https://twitch.tv/diegoloveless",
+  "platform_accounts": [
+    {
+      "platform": "twitch",
+      "login": "diegoloveless",
+      "channel_url": "https://twitch.tv/diegoloveless"
+    }
+  ],
+  "visual_preferences": {
+    "creator_visibility_required": true,
+    "gameplay_visibility_required": true,
+    "preferred_facecam_layout": "auto"
+  },
+  "source_permissions": {
+    "authorized_platforms": [
+      "twitch"
+    ],
+    "allowed_source_types": [
+      "live_stream",
+      "past_broadcast"
+    ],
+    "native_viewer_clips_allowed": true,
+    "full_vod_file_download_authorized": false,
+    "creator_relay_available": false,
+    "channel_editor_access": false
+  },
+  "campaign_profiles": [
+    "diego-loveless-gta"
+  ],
+  "notes": "Viewer-created Twitch clips downloaded manually; no OBS relay or Editor API."
+}
