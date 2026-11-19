@@ -32,7 +32,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install validation dependencies
-        run: python -m pip install --upgrade pip jsonschema pytest httpx
+        run: python -m pip install --upgrade pip jsonschema pytest httpx websockets
 
       - name: Validate timeline schema and example
         run: python -m pytest -q tests
