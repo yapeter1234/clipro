@@ -6,6 +6,7 @@ on:
       - "packages/timeline/**"
       - "services/api/**"
       - "services/worker/**"
+      - "config/**"
       - "tests/**"
       - "requirements-dev.txt"
       - ".github/workflows/validate-timeline.yml"
