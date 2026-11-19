@@ -84,17 +84,19 @@ def sign_multipart_request(
         raise ValueError("Unsupported S3 multipart operation.")
     client_method, http_method = operation
 
+    if client_method == "upload_part":
+        if part_number is None or not 1 <= part_number <= 10000:
+            raise ValueError("A valid multipart part number is required.")
+    elif part_number is not None:
+        raise ValueError("part_number is only valid for upload_part.")
+
     params: dict[str, Any] = {
         "Bucket": get_bucket_name(),
         "Key": key,
         "UploadId": upload_id,
     }
     if client_method == "upload_part":
-        if part_number is None or not 1 <= part_number <= 10000:
-            raise ValueError("A valid multipart part number is required.")
         params["PartNumber"] = part_number
-    elif part_number is not None:
-        raise ValueError("part_number is only valid for upload_part.")
 
     return get_s3_client().generate_presigned_url(
         ClientMethod=client_method,
