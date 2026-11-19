@@ -1,73 +1,137 @@
-# DiegoLoveless GTA 6 campaign profile
+# DiegoLoveless GTA campaign profile
 
-## Confirmed from the user
+## Creator and source
 
 - Creator: DiegoLoveless
-- Source channel: https://twitch.tv/diegoloveless
-- Source platform: Twitch
-- Campaign topic: GTA 6 / Grand Theft Auto VI
-- Required content: every clip must feature Diego playing GTA 6.
-- Preferred moments: funny reactions, insane gameplay and other genuinely entertaining/viral moments.
-- Required CTA: a clear call to action directing viewers to Diego's Twitch channel.
-- Preferred narration/caption language: English only.
-- Acquisition constraint: the clipper is not the channel owner and Diego will not provide a separate OBS output.
-- Publishing constraint: Clipro must never publish. It produces an export for the clipper to approve, download and publish manually.
+- Twitch channel: https://twitch.tv/diegoloveless
+- Platform restriction: Twitch only for this campaign.
+- Eligible source types: live Twitch streams and past Twitch broadcasts/VODs.
+- Capture workflow: viewer creates a native Twitch Clip, downloads the clip they created from Clips Manager, then uploads the file into Clipro.
+- No OBS/RTMPS relay is available.
+- The clipper cannot get Channel Editor access.
+- No Twitch Editor-only API endpoint or download scope is used.
+- English captions and narration only.
+- Clipro renders files; the user publishes them manually. Clipro never publishes.
 
-## Campaign rules source
+## Temporary GTA-only update
 
-The user supplied this Notion link as the full campaign brief:
+The supplied brief says that, for the week starting **November 18, 2026**, only Grand Theft Auto content from Diego's Twitch gaming streams is eligible while he speedruns GTA.
 
-https://app.notion.com/p/DiegoLoveless-GTA-6-Full-Rules-Brief-4038e33583238129bbc3f689497ad8db
+Implementation interpretation:
+- Start date: 2026-11-18 inclusive.
+- Seven-day period ending 2026-11-25 exclusive.
+- Only Grand Theft Auto franchise gameplay during this window.
+- The actual GTA title must be identified from the source footage. Game-specific hashtags must match the title shown.
+- GTA 6 is the target/priority from the campaign title and the user's original brief. The current temporary text says Grand Theft Auto content broadly; if Diego streams another GTA title, confirm the campaign operator's interpretation before rejecting or posting it.
+- No non-GTA games or IRL content during the temporary window.
 
-The page could not be retrieved through the available browser integration. Its full rule text is therefore **not yet verified in this repository**. Do not invent or import rules from other Diego campaigns.
+The brief does not state a timezone for the start/end boundary.
 
-Before enabling production clipping, import the full Notion brief and verify:
-- allowed source material (live stream, VOD, native Twitch Clips, specific VOD date window);
-- exact CTA wording and placement;
-- required logo/overlay and whether it must remain throughout;
-- permitted output platforms and posting cadence;
-- duration, aspect ratio, caption, music and voiceover rules;
-- prohibited topics, words, imagery, edits or music;
-- whether AI narration, heavy editing, external b-roll or transitions are permitted;
-- minimum views, audience/geography requirements, analytics evidence and submission deadline;
-- campaign cap, budget, rate and payout validation details.
+## Goal and editorial priorities
 
-Any rule conflict must be resolved in favor of the current campaign brief and the campaign platform's current terms. Older Diego campaigns may be about different games and are not a valid substitute.
+Goal: turn Diego's best Grand Theft Auto moments into engaging clips that show why Diego is underrated and bring new viewers to his Twitch stream.
 
-## Editing profile (user preference, subject to campaign rules)
+Prioritize:
+1. Funny moments and genuine reactions.
+2. Standout gameplay.
+3. Speedrun highlights, milestones and clever play.
+4. Unexpected, positive and entertaining moments.
 
-- Full short-form editorial treatment rather than a raw crop.
-- Context-preserving hook, purposeful transitions and motion graphics.
-- Accurate, word-synchronized English captions.
-- Optional original English narrator voiceover if the moment benefits from context.
-- Reframing/gameplay and creator visibility must remain clear.
-- Licensed music and sound effects only.
-- CTA to https://twitch.tv/diegoloveless.
-- No creator voice cloning.
-- No misleading chronology, fabricated dialogue or fake gameplay.
-- Final review and manual publication by the user only.
+Every clip must:
+- show Diego playing GTA content from his Twitch gaming stream;
+- have a clear hook and payoff;
+- be meaningfully edited, not merely screen-recorded or randomly trimmed;
+- never make Diego look bad;
+- preserve the context and meaning of what happened;
+- include a clear CTA to https://twitch.tv/diegoloveless, either on-screen or in the caption.
 
-The editing preference is not permission to violate a campaign rule. For example, if the brief prohibits overly polished ads or AI voiceovers, the renderer must obey the campaign and disable those features for this profile.
+The campaign says the overlay is optional but highly encouraged:
+https://drive.google.com/drive/folders/1PzanQArZXGwy3C2M1SLIMFy8eMCKECTe?usp=sharing
 
-## Public listing cross-check (not a substitute for the brief)
+No page requirement and no bio requirement.
 
-On 19 November 2026, a public Content Rewards discovery result listed a campaign titled “DiegoLoveless GTA 6 Clipping”. A separate older Diego campaign was titled “DiegoLoveless Marvel Rivals Clipping”. Third-party campaign trackers expose details from the older campaign that are not necessarily valid for the GTA 6 campaign.
+## Exact campaign requirements from the supplied brief
 
-The implementation must bind to the exact campaign selected by the user and must not import Marvel Rivals rules into this profile.
+### Caption and hashtags
+- CTA: show `twitch.tv/diegoloveless` on-screen or in the caption.
+- Required hashtags: `#GTA` and `#DiegoLoveless`.
+- Optional hashtags: `#GrandTheftAuto` and `#Speedrun` when relevant.
+- Any game-specific hashtag must match the exact GTA title shown in the clip.
+- Captions, titles and narration must accurately describe the moment. No fake context or misleading clickbait.
 
-## Twitch live clipping without OBS
+### Visual and content quality
+- Use a streamer or brainrot editing style.
+- No low-effort/slop content.
+- No screen recordings of videos, random moments, or clips without a clear purpose.
+- Every submission must be properly edited, engaging and relevant.
+- Never make Diego look bad.
+- Do not copy another clip 1:1; edits inspired by references must be meaningfully different.
+- Do not post stolen or reuploaded clips.
+- Do not spam for quantity; quality over quantity.
+- Do not post the same or nearly identical clip more than five times. Clipro should flag duplicate/reuse similarity for user review.
 
-Twitch's documented Create Clip From VOD endpoint can create a clip from an earlier point in a VOD that is still being generated by an active broadcast. The clipper can use this for live moments without a separate OBS feed, provided they are authorized as a channel Editor and their OAuth token has `editor:manage:clips`.
+### Account and audience requirements
+- Likes must be visible on every published clip; hidden likes cause rejection.
+- Every new account must complete the three-day warmup process before posting:
+  https://app.notion.com/p/pNew-Account-Warm-Up-Process-TikTok-Instagram-Reels-3-Day-Plan-3e38e335832381d4a29dc38080a24350?pvs=21
+- Every clipper must read the approval process before submitting:
+  https://app.notion.com/p/ClipLaunch-Approval-Process-3e38e335832380b1b900f827ce616dcd?pvs=21
+- Every clipper must read the Tier 1 audience targeting guide:
+  https://app.notion.com/p/How-to-Target-Tier-1-Audience-3e38e335832381e79ec0e3bb17145a20?pvs=21
+- Audience requirement: at least 40% Tier 1 audience, defined as United States, United Kingdom, Canada and Australia.
+- Engagement requirement: at least 0.8%.
+- Keep each published clip live for at least 30 days.
+- Page can be any page; bio requirement is none.
 
-Recommended workflow: detect live chat signals, map the event to the active VOD offset, request a 30–60 second VOD clip, poll for clip availability, obtain a short-lived landscape/portrait media URL through Get Clips Download, fetch it immediately, and submit that media to the shared editorial/render pipeline. The download URLs are temporary and must not be logged or stored as permanent public URLs.
+The 40% audience share and 0.8% engagement rate are post-publication analytics requirements. Clipro cannot guarantee or infer them before posting. The dashboard should record user-provided analytics evidence after publishing and flag whether each target is met. Never fabricate or inflate metrics.
 
-This does not amount to a continuous raw video feed. Chat-driven detection can miss quiet moments; the first pilot should combine chat bursts with an authorized sampling/clip review strategy and clearly show monitoring limitations.
+### Prohibited behavior
+- No story boosts or artificially inflated views/engagement.
+- No misleading titles, fake context or engagement bait.
+- No repetitive/spam posting.
+- No clips of non-GTA games or IRL content during the temporary GTA-only window.
+- No raw screen recordings or low-effort exports.
 
-Official Twitch documentation: https://dev.twitch.tv/docs/api/reference/clips
+## Reference videos
 
-## Current blockers
+Use these only as editing-style references, never as source footage to reuse:
 
-1. Full Notion rules text needs to be pasted or exported into the repository.
-2. Confirm whether Diego can add the user's Twitch account as an Editor. Twitch's official Editor role permits downloading past broadcasts and managing clips, but it also grants broader channel-dashboard powers.
-3. If Editor access is declined, obtain the authorized VOD/clip media through an approved campaign download or file-supply workflow.
-4. The two Instagram reference links could not be inspected through the available browser integration. Provide video files, screen recordings, or accessible alternate links before finalizing the visual template.
+1. https://www.instagram.com/p/DbOdutpP942/
+2. https://www.instagram.com/reel/DctaNCtgpvf/
+3. https://www.instagram.com/reel/DZYFYUTgyVp/
+4. https://www.instagram.com/reel/DfXs6wXvV8g/ — HIGH PRIORITY
+5. https://www.instagram.com/reel/DfS_wB8B6l5/ — HIGH PRIORITY
+
+The actual visual frames of these reference videos have not yet been inspected in this workspace.
+
+## Post-publication checklist
+
+Clipro never publishes. After you publish manually:
+1. Record the published URL and publication time.
+2. Confirm likes are visible.
+3. Record the post-live date and schedule a 30-day retention reminder.
+4. When analytics are available, record views, likes, comments, shares, engagement rate and Tier 1 audience share.
+5. Flag whether engagement is at least 0.8% and Tier 1 audience is at least 40%.
+6. Never manufacture views, likes, comments, shares or audience geography.
+
+## Additional process guides still needed
+
+The brief links three process guides (warmup, approval and Tier 1 audience targeting). Their URLs are recorded above, but the full contents have not been supplied. Before claiming the campaign workflow is fully compliant, import or review those guides.
+
+## Editing preset
+
+- Style: high-energy streamer/brainrot editing, but not chaotic for its own sake.
+- Language: English.
+- Captions: accurate, readable, kinetic emphasis on key words.
+- Transitions: punch-ins, motion transitions, zooms and effects only when they reinforce the moment.
+- Narration: optional original English narrator, only when it adds context and does not cover Diego's reaction.
+- Music/SFX: only assets licensed for intended platforms and commercial/campaign use.
+- CTA: Twitch channel clearly displayed on-screen or in caption. Default render can include an end-card/CTA overlay unless the user chooses caption-only and the rule remains satisfied.
+- Framing: keep Diego and GTA gameplay clearly visible.
+- Tone: entertaining, positive and respectful. Never edit a loss, mistake or reaction to humiliate Diego.
+
+## Source rights and handling
+
+The supplied campaign brief authorizes clipping Diego's Twitch GTA gaming content for this campaign, subject to these rules. Use Twitch's native viewer Clip Creator and download the clip you created. Do not use screen recording, undocumented VOD extraction, Editor-only API scopes, or creator credentials.
+
+Each source asset records platform, channel, live/past type, source clip URL/ID, acquisition method, file checksum, upload time and retention status.
