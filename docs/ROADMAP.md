@@ -12,8 +12,10 @@
 **Exit:** a user can define a creator/campaign profile without changing code; source policies correctly describe live vs past video for each platform.
 
 ## M1 — browser source intake
-- [ ] Add browser upload UI with resumable/chunked upload.
+- [x] Add backend upload preflight contract and endpoint for source method, rights confirmation, file type and size.
+- [ ] Add browser upload UI with resumable/chunked upload (Uppy + R2).
 - [ ] Add source metadata form (platform, creator/channel, live/past/uploaded, source URL/clip URL, campaign, authorization).
+- [ ] Add R2 multipart upload session/sign/complete/abort endpoints.
 - [ ] Add media probe (ffprobe) and file validation.
 - [ ] Add source-range selector for long authorized VOD files.
 - [ ] Add capture instructions and file-download guide per platform.

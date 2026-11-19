@@ -45,21 +45,24 @@ The editing engine is source-agnostic. The future manual timeline editor will us
 
 | Layer | Technology |
 |---|---|
+| Browser UI | Next.js + Uppy |
+| Control plane | FastAPI |
+| Authentication/metadata | Supabase Auth + Postgres (planned) |
+| Media storage | Cloudflare R2 (planned) |
 | Cloud execution | Modal |
-| Backend | Python, FastAPI |
-| Browser UI | Next.js |
-| Media analysis | FFmpeg/ffprobe, OpenCV, faster-whisper, Silero VAD |
-| Editorial plan | Provider-neutral structured JSON; local model first |
+| Media analysis | FFmpeg/ffprobe, PySceneDetect, faster-whisper/WhisperX, Silero VAD |
+| Editorial plan | Provider-neutral structured JSON |
 | Voiceover | Kokoro or another appropriately licensed TTS model |
-| Motion graphics | Remotion |
+| Motion graphics | Remotion, subject to license eligibility |
 | Rendering | FFmpeg |
-| Metadata | PostgreSQL when multi-user; SQLite for local prototype only |
-| Media artifacts | Object storage abstraction / Modal Volume for temporary worker files |
+| Timeline | Versioned JSON schema |
 
 ## Development status
 
-See [ROADMAP.md](docs/ROADMAP.md) and [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+See [ROADMAP.md](docs/ROADMAP.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [M1 media ingestion ADR](docs/ADR_001_MEDIA_INGESTION.md), and [tooling research](docs/TOOLING_RESEARCH.md).
 
+- M1a: upload preflight API contract and validation are implemented.
+- Not implemented yet: browser uploader, R2 multipart signing/storage, media probing, job dispatch and rendering.
 - Campaign-specific rules: [DiegoLoveless GTA profile](docs/campaigns/diego-loveless-gta6.md)
 - Source policy: [Source acquisition guide](docs/INGESTION_NO_OBS.md)
 - Browser capture steps: [Twitch, Kick and YouTube](docs/SOURCE_CAPTURE_GUIDE.md)
