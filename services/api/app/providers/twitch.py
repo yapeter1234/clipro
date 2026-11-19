@@ -1,12 +1,17 @@
-"""Minimal official Twitch Helix client for authorized VOD clipping.
+"""Official Twitch Helix client for authorized live/VOD clipping.
 
-This module never extracts undocumented player URLs. For VOD clipping and
-media download, authenticate as a Twitch channel Editor (or the broadcaster)
-and request the editor:manage:clips scope.
+For the Diego pilot, the clipper must be explicitly added as a channel Editor
+by the broadcaster, then authenticate their own Twitch account with
+editor:manage:clips. This does not use undocumented playback URL extraction.
+
+Temporary Twitch CDN download URLs are sensitive and must never be logged or
+persisted as durable public URLs.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
+import time
+from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 import httpx
@@ -25,16 +30,13 @@ class TwitchAPIError(RuntimeError):
 
 @dataclass(slots=True)
 class TwitchHelixClient:
-    """Async Twitch Helix client using one user's OAuth access token.
-
-    Pass a shared httpx.AsyncClient in tests or when reusing a configured
-    connection pool. The caller owns and closes an injected client.
-    """
+    """Async Twitch Helix client using one user's OAuth access token."""
 
     client_id: str
     user_access_token: str
     http_client: httpx.AsyncClient | None = None
     base_url: str = HELIX_BASE_URL
+    _owns_client: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if not self.client_id.strip():
@@ -43,13 +45,10 @@ class TwitchHelixClient:
             raise ValueError("user_access_token is required")
         if self.http_client is None:
             self.http_client = httpx.AsyncClient(
-                base_url=self.base_url.rstrip("/"),
                 timeout=httpx.Timeout(20.0, connect=10.0),
                 follow_redirects=False,
             )
             self._owns_client = True
-        else:
-            self._owns_client = False
 
     async def aclose(self) -> None:
         if self._owns_client and self.http_client is not None:
@@ -69,19 +68,18 @@ class TwitchHelixClient:
         path: str,
         *,
         params: dict[str, Any] | list[tuple[str, Any]] | None = None,
-        json_body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         assert self.http_client is not None
+        # Build an absolute URL so the /helix prefix is preserved even when
+        # an injected AsyncClient has its own base_url.
+        url = f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"
         response = await self.http_client.request(
             method,
-            path,
+            url,
             params=params,
-            json=json_body,
             headers=self._headers,
         )
         if response.is_error:
-            # Do not include request headers, token values, or signed media URLs
-            # in logs or exception text.
             try:
                 payload = response.json()
                 message = str(payload.get("message") or "Twitch API request failed")
@@ -103,23 +101,17 @@ class TwitchHelixClient:
         return payload
 
     async def get_user(self, login: str) -> dict[str, Any] | None:
-        """Resolve a Twitch login to a broadcaster record."""
         if not login.strip():
             raise ValueError("login is required")
         result = await self._request(
-            "GET",
-            "/users",
-            params={"login": login.strip().lstrip("@")},
+            "GET", "/users", params={"login": login.strip().lstrip("@")}
         )
         rows = result.get("data") or []
         return rows[0] if rows else None
 
     async def get_stream(self, broadcaster_id: str) -> dict[str, Any] | None:
-        """Return the active stream record, or None when offline."""
         result = await self._request(
-            "GET",
-            "/streams",
-            params={"user_id": broadcaster_id},
+            "GET", "/streams", params={"user_id": broadcaster_id}
         )
         rows = result.get("data") or []
         return rows[0] if rows else None
@@ -132,7 +124,6 @@ class TwitchHelixClient:
         after: str | None = None,
         video_type: str = "archive",
     ) -> dict[str, Any]:
-        """List channel VODs. Continue pagination using the returned cursor."""
         if not 1 <= first <= 100:
             raise ValueError("first must be between 1 and 100")
         params: dict[str, Any] = {
@@ -153,7 +144,6 @@ class TwitchHelixClient:
         first: int = 20,
         after: str | None = None,
     ) -> dict[str, Any]:
-        """List a broadcaster's clips, optionally within a time window."""
         if not 1 <= first <= 100:
             raise ValueError("first must be between 1 and 100")
         params: dict[str, Any] = {
@@ -170,6 +160,13 @@ class TwitchHelixClient:
             params["after"] = after
         return await self._request("GET", "/clips", params=params)
 
+    async def get_clips_by_ids(self, clip_ids: Iterable[str]) -> dict[str, Any]:
+        ids = [value for value in clip_ids if value]
+        if not ids or len(ids) > 100:
+            raise ValueError("provide between 1 and 100 clip IDs")
+        params = [("id", value) for value in ids]
+        return await self._request("GET", "/clips", params=params)
+
     async def create_live_clip(
         self,
         broadcaster_id: str,
@@ -178,11 +175,7 @@ class TwitchHelixClient:
         duration: float = 30.0,
         has_delay: bool = False,
     ) -> dict[str, Any]:
-        """Request a native clip from a currently live broadcast.
-
-        Requires a user token with clips:edit. The channel must have clipping
-        enabled and must not restrict clipping beyond the user's status.
-        """
+        """Create a native clip from a currently live broadcast (clips:edit)."""
         if not 5 <= duration <= 60:
             raise ValueError("duration must be between 5 and 60 seconds")
         params: dict[str, Any] = {
@@ -204,10 +197,10 @@ class TwitchHelixClient:
         title: str,
         duration: float = 30.0,
     ) -> dict[str, Any]:
-        """Create a clip from an archive VOD or the VOD of an active stream.
+        """Create a clip from a VOD, including a VOD being recorded live.
 
-        Requires editor:manage:clips (or channel:manage:clips for the owner).
-        The offset is the clip end position in the VOD, not its start position.
+        Requires editor:manage:clips or channel:manage:clips. The clip starts
+        at (vod_offset - duration) and ends at vod_offset.
         """
         if not 5 <= duration <= 60:
             raise ValueError("duration must be between 5 and 60 seconds")
@@ -225,6 +218,25 @@ class TwitchHelixClient:
         }
         return await self._request("POST", "/videos/clips", params=params)
 
+    async def wait_for_clip(
+        self,
+        clip_id: str,
+        *,
+        timeout_seconds: float = 60.0,
+        poll_interval_seconds: float = 2.0,
+    ) -> dict[str, Any] | None:
+        """Poll Get Clips until Twitch returns the newly created clip."""
+        if timeout_seconds <= 0 or poll_interval_seconds <= 0:
+            raise ValueError("timeout and poll interval must be positive")
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            result = await self.get_clips_by_ids([clip_id])
+            rows = result.get("data") or []
+            if rows:
+                return rows[0]
+            await asyncio.sleep(poll_interval_seconds)
+        return None
+
     async def get_clip_downloads(
         self,
         *,
@@ -232,11 +244,11 @@ class TwitchHelixClient:
         broadcaster_id: str,
         clip_ids: Iterable[str],
     ) -> dict[str, Any]:
-        """Get short-lived landscape/portrait download URLs for authorized clips.
+        """Get temporary download URLs for authorized channel clips.
 
         Requires editor:manage:clips or channel:manage:clips. The editor_id
-        must match the user represented by the OAuth token. Treat returned
-        URLs as secrets: fetch promptly and never log or persist them publicly.
+        must match the user ID represented by the OAuth token. Fetch returned
+        URLs promptly, and never log/store them as public permanent URLs.
         """
         ids = [clip_id for clip_id in clip_ids if clip_id]
         if not ids or len(ids) > 10:
@@ -246,8 +258,4 @@ class TwitchHelixClient:
             ("broadcaster_id", broadcaster_id),
         ]
         params.extend(("clip_id", clip_id) for clip_id in ids)
-        return await self._request(
-            "GET",
-            "/clips/downloads",
-            params=params,
-        )
+        return await self._request("GET", "/clips/downloads", params=params)
