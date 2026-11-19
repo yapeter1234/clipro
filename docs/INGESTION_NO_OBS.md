@@ -1,85 +1,134 @@
-# No-OBS source acquisition
+# Source acquisition: live streams, past broadcasts and uploaded videos
 
-This is the source-access plan for the DiegoLoveless GTA 6 campaign. The clipper is not the channel owner; Diego does not provide a secondary OBS output. Twitch itself provides two possible workflows, with different permission and automation levels.
+Clipro is a general-purpose clipping and editing studio. It supports source jobs from Twitch, Kick and YouTube, with separate acquisition rules for live streams and past broadcasts.
 
-## First: validate the campaign terms
+**The media workflow is deliberately browser-based:** capture a native clip or select an authorized source file on the platform, download/upload the file where supported, and submit it to Clipro. Clipro never assumes that a public player URL is a downloadable MP4.
 
-Campaign profile:
+## Source types
+
+Every media job must declare exactly one source type:
+
+1. `live_stream`: a moment captured while the creator is currently broadcasting.
+2. `past_broadcast`: a moment captured from an archived livestream/VOD.
+3. `uploaded_video`: a creator- or campaign-authorized video file supplied for automatic highlight discovery or manual editing.
+
+The source type is separate from acquisition method. For example, a Twitch viewer-created clip from a VOD is `past_broadcast + viewer_native_clip_manual_download`.
+
+## Platform capability matrix (viewer workflow)
+
+| Platform | Live stream clip | Past broadcast/VOD clip | Viewer can download created clip | Full VOD download from another creator |
+|---|---|---|---|---|
+| Twitch | Yes, up to 60 sec | Yes, up to 60 sec | Yes, from Clips Manager | No viewer-wide full-VOD download |
+| Kick | Yes, 10–180 sec | Yes, 10–180 sec | Yes, from clip page | No; Kick says only channel owners can download their own VOD |
+| YouTube | Yes, if DVR/eligibility limits permit; clip may only be available after archive processing | Yes, 5–60 sec | A Clip is a shareable link/loop, not a normal MP4 export flow | Creator must supply an authorized source file for custom Clipro editing |
+
+These are platform UI capabilities, not Clipro download APIs. They may be restricted by the creator's settings, regional/platform changes, stream/VOD status, follower/subscriber requirements, account restrictions or the original video's availability.
+
+## Twitch — recommended for Diego's first campaign
+
+Official help: https://help.twitch.tv/s/article/how-to-use-clips
+
+Twitch says logged-in viewers may create clips of a channel's live streams and VODs when the streamer has enabled clipping and has not restricted it to followers/subscribers or blocked the viewer. Clips can be up to 60 seconds. A viewer can download clips they created through the Clips Manager.
+
+### Live stream
+1. Open the creator's live channel while signed in.
+2. Use Twitch's Clip button/Clip Creator around the moment.
+3. Trim to include the setup and payoff; keep within Twitch's 60-second clip limit.
+4. Publish/create the native Twitch clip. This creates a Twitch clip asset; it is distinct from publishing a Short/Reel.
+5. Find the clip under your Clips Manager, download the landscape or portrait file you created.
+6. Upload that MP4 to Clipro and choose `Live stream` as the source type.
+
+### Past broadcast
+1. Open the creator's past broadcast/VOD.
+2. Use the Clip button/Clip Creator on the VOD if the channel settings allow it.
+3. Select the relevant moment and create the native clip.
+4. Download the clip you created from Clips Manager.
+5. Upload the MP4 to Clipro and choose `Past broadcast`.
+
+### Important limits
+- The user cannot use Twitch's editor-only Get Clips Download API from an ordinary viewer account.
+- Do not use the Editor-only Create Clip From VOD API in the Diego pilot.
+- Do not download arbitrary full VODs through undocumented player/HLS/GraphQL methods.
+- Twitch native clip creation publishes a clip asset on Twitch. The user chooses when to create it; Clipro never creates it automatically.
+- Twitch's portrait crop/layout may be adjusted in its Clip Manager; Clipro can also reframe the downloaded file after upload.
+
+## Kick
+
+Official help: https://help.kick.com/en/articles/7120566-how-to-create-clips-on-kick
+
+Kick's official help says a logged-in viewer can create clips from live streams and VODs. Clips are 10–180 seconds. The viewer can download a clip they created from the clip page as an MP4.
+
+### Live stream or VOD
+1. Open the creator's live stream or VOD while signed in.
+2. Click the Clip icon or use the documented keyboard shortcut.
+3. Choose a moment between 10 and 180 seconds and create the clip.
+4. Open the clip and download the MP4.
+5. Upload it to Clipro with the correct source type.
+
+Kick says viewers cannot download another channel's full VOD; use the native clip workflow or obtain a creator/campaign-supplied source file.
+
+## YouTube
+
+Official help: https://support.google.com/youtube/answer/10332730
+
+YouTube Clips are public shareable excerpts from an eligible video/live stream. They are 5–60 seconds and play from the original watch page. They are not a general MP4 download mechanism for a third-party video.
+
+For live streams:
+- DVR must be enabled and the stream must satisfy YouTube's eligibility limits.
+- Some clips are not playable until the live stream ends and the archive has uploaded.
+- Live streams over the DVR window and certain long streams may be ineligible.
+
+For Clipro's custom editing workflow, the user must upload an authorized source video file/excerpt supplied by the creator/campaign or otherwise lawfully available to them. A YouTube Clip URL alone is stored as a reference, not ingested as raw media.
+
+## Browser upload to Clipro
+
+The future browser dashboard must provide:
+- Drag/drop MP4/MOV/WebM upload.
+- Platform, channel URL, source type (live/past/uploaded) and source link fields.
+- A checkbox/record for campaign or creator authorization and the allowed purpose.
+- A clear status if only a platform Clip URL was supplied but no media file.
+- File duration, resolution, frame rate, codec, audio stream and size inspection.
+- User selection of a source range for long uploaded videos.
+- Progress, retry and resumable upload for large files.
+- Checksum, temporary storage key and retention/expiry.
+- No arbitrary URL-to-video download button.
+
+A public URL alone is never treated as a media file. Arbitrary server-side URL fetching is disabled to avoid SSRF, platform access bypass, and rights confusion.
+
+## Multi-streamer and multi-campaign support
+
+Clipro is not hard-coded to Diego. Each job selects a streamer/source profile and optionally a campaign profile.
+
+- A streamer profile stores platform, channel identity, display name and optional creator-specific layout preferences.
+- A campaign profile stores source restrictions, allowed game/topic, required CTA, captions/hashtags, disclosure, content restrictions, duration targets and post-publish analytics requirements.
+- A style profile stores editing treatment (streamer/brainrot, documentary, clean captions, etc.).
+- The rendering engine consumes the same normalized project schema regardless of platform or source type.
+
+One creator's restrictions must not leak into another creator's job. For example, Diego's Twitch-only GTA rule must not restrict a Kick or YouTube campaign for another streamer.
+
+## DiegoLoveless campaign mapping
+
+- Platform: Twitch only.
 - Channel: https://twitch.tv/diegoloveless
-- Required creator: DiegoLoveless
-- Required game: Grand Theft Auto VI
-- Every clip must show Diego playing GTA 6.
-- Every clip must include a clear CTA to Diego's Twitch channel.
-- Output language: English.
-- Clipro must never publish to TikTok, Instagram, YouTube or any other social account; it only renders and returns files for the user to publish manually.
+- Source types: live streams and past broadcasts.
+- Acquisition: viewer-created Twitch native clip, manual download, then Clipro upload.
+- No OBS relay.
+- No Twitch Editor role or Editor-only API.
+- English only.
+- Must show Diego playing Grand Theft Auto content and preserve the actual GTA title shown.
+- Required CTA: https://twitch.tv/diegoloveless, on-screen or in caption.
+- Required hashtags: #GTA and #DiegoLoveless. Optional: #GrandTheftAuto and #Speedrun where relevant. Any game-specific hashtag must match the exact game title in the clip.
+- Full rules are recorded in `docs/campaigns/diego-loveless-gta6.md` and `config/campaigns/diego-loveless-gta6.json`.
 
-The full Notion campaign brief is linked in `docs/campaigns/diego-loveless-gta6.md` but has not been retrievable from the current environment. The user's summary is recorded, but the exact rules (clip length, source window, CTA copy/placement, permitted effects, disclosure, prohibited content, submission process, etc.) must be imported before production. Do not infer those rules from another Diego campaign.
+## What the pipeline can and cannot automate
 
-## Mode A — fully automated Twitch VOD clipping (requires channel Editor)
+After a file is uploaded, Clipro can automatically:
+- inspect and transcribe it;
+- find highlights in longer authorized source files;
+- create the edit plan;
+- generate captions, hook graphics, original narration, licensed music/SFX, transitions and motion;
+- render, validate and return the MP4 for approval.
 
-Twitch's documented Create Clip From VOD endpoint can create a clip from the VOD currently being generated by an active broadcast. It supports 5–60 seconds and takes a VOD offset representing the end of the clip.
+With manual viewer capture, Clipro cannot independently watch all raw frames of a third-party stream or automatically retrieve the original full VOD. The user must create/download a permitted native clip or provide an authorized source file first.
 
-Workflow:
-1. Diego adds the clipper's Twitch account as a channel **Editor** in Roles Manager.
-2. The clipper authorizes Clipro's registered Twitch application with their own user OAuth token and `editor:manage:clips` scope.
-3. Clipro uses read-only Twitch IRC chat with `chat:read` to detect likely moments. No chat messages are sent.
-4. Clipro verifies that the live channel is DiegoLoveless and Twitch reports Grand Theft Auto VI as the game category.
-5. Clipro calculates a VOD offset with pre-roll/post-roll and estimated live-VOD delay.
-6. Clipro calls `POST /helix/videos/clips` with the broadcaster ID, editor ID, active VOD ID, VOD offset, duration and title.
-7. Clipro polls `GET /helix/clips?id=...` until the clip is available.
-8. Clipro calls `GET /helix/clips/downloads` and fetches the temporary landscape/portrait media URL promptly.
-9. The media enters the shared editorial/render pipeline; the final edited MP4 remains private and waits for user approval/download.
-
-Official API references:
-- https://dev.twitch.tv/docs/api/reference/clips
-- https://dev.twitch.tv/docs/authentication/scopes/
-- https://dev.twitch.tv/docs/chat/irc/
-
-### Important permission trade-off
-
-The Twitch Editor role is broader than clip download: Twitch says Editors can access the channel dashboard, edit stream/video info, run commercials, upload videos, start reruns, download past broadcasts, review/search/delete clips and change channel clipping permissions. Only the channel owner can add/remove Editors. Request this role only if Diego is comfortable with those privileges.
-
-The `editor:manage:clips` OAuth scope is narrower than the channel Editor role, but the user must actually be an Editor of Diego's channel for the VOD clip/download endpoints to authorize them. Never ask for Diego's password, OAuth token or stream key.
-
-## Mode B — viewer-created Twitch clips (no Editor role; manual media handoff)
-
-Twitch's help documentation says any logged-in viewer can create clips if the streamer has enabled clipping and has not restricted it to followers/subscribers or blocked the viewer.
-
-Workflow:
-1. The clipper signs in with their own Twitch account and authorizes Clipro only for chat reading (`chat:read`) and, if we later integrate the native capture action, clip creation (`clips:edit`).
-2. Chat detection proposes a timestamp. The user creates a Twitch clip from the live stream using Twitch's native Clip Creator, or Clipro may request a native clip only after the user explicitly approves that action.
-3. Twitch shows the creator the clip in their Clips Manager. Twitch help says viewers can download clips they created, including clips from other channels.
-4. The user manually downloads their own landscape/portrait clip from Twitch and uploads it to Clipro's browser dashboard.
-5. Clipro performs full editing, QA and final export.
-
-Important limits:
-- The Helix `Get Clips Download` API endpoint does **not** authorize ordinary viewers; it requires `editor:manage:clips` or `channel:manage:clips`.
-- The manual Twitch Clips Manager download is therefore the viewer-level fallback; Clipro must not pretend it can automate this download through the API.
-- Creating a native Twitch clip may publish a clip asset on Twitch. Clipro must not create one in the background without explicit user approval. If the campaign forbids publishing native Twitch clips, use Mode C.
-
-Official help reference:
-- https://help.twitch.tv/s/article/how-to-use-clips
-
-## Mode C — campaign-supplied source media
-
-If Diego does not want to grant Editor access and you do not want native Twitch clips to be created, use VOD/clip files or excerpts that Diego/campaign supplies through an authorized download or upload path. This supports full automation after the file has been provided, but not automatic extraction from the live stream.
-
-## No undocumented extraction
-
-Do not use undocumented Twitch GraphQL playback queries, direct HLS URL extraction, bypassing subscriber/follower restrictions, DRM circumvention, or unofficial scraping as Clipro's production media-access method.
-
-## Source evidence stored with each clip
-
-Each source asset should record:
-- platform and broadcaster ID;
-- VOD ID or Twitch Clip ID;
-- capture method (Editor VOD API, viewer-created native clip, campaign-supplied file);
-- user/creator authorization record and permitted purpose;
-- timestamp/offset and source category;
-- file checksum and temporary storage key;
-- date/time of retrieval;
-- expiry/retention status.
-
-## Other platform adapters
-
-Kick and YouTube may be supported later for metadata, live state, chat and permitted clip/file workflows. They must each implement a source-access capability matrix. Do not assume that public livestream visibility implies a supported download/edit API.
+For future creators who grant broader API permissions or provide a media relay, additional acquisition modes can be enabled as explicit, separate integrations.
