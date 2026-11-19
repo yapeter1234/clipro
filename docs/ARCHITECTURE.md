@@ -1,0 +1,216 @@
+# Architecture
+
+## 1. Goals
+
+Clipro is a browser-first, cloud-hosted production system for turning authorized live-stream footage and uploaded source videos into polished short-form edits.
+
+The live monitor and the future manual editor must share one timeline model and one render engine. They differ only in how source media enters the system and how edit decisions are initiated.
+
+### MVP constraints
+
+- One monitored creator/channel at a time.
+- Twitch, Kick and YouTube adapters are separate modules.
+- All video processing uses an authorized source feed, creator-provided recording, or platform capability permitted for the requested operation.
+- Platform chat and metadata are signals, not substitutes for access to the actual video.
+- AI may find, edit and render candidates automatically.
+- Publication is disabled until a human explicitly approves a candidate.
+- Rendered videos are accompanied by a structured edit decision list (EDL)/timeline project that can be edited again.
+
+## 2. System boundaries
+
+### Control plane
+
+The FastAPI service owns:
+- user and workspace authentication;
+- streamer/channel configuration;
+- monitor lifecycle and quotas;
+- provider OAuth callback handling;
+- campaign and output profiles;
+- candidate/asset/project metadata;
+- approval/rejection state transitions;
+- job creation, status and audit events.
+
+The control plane must not process long-running media inside an HTTP request.
+
+### Data plane
+
+Modal workers own:
+- live ingest sessions;
+- rolling media buffers;
+- signal extraction;
+- transcription and voice activity detection;
+- highlight candidate generation;
+- editorial planning;
+- voiceover and caption generation;
+- render jobs and output validation.
+
+Use separate short-lived Functions for bounded jobs and a supervised Sandbox or long-lived worker for the ingest process. A Modal Sandbox is not a forever-running service: workers must checkpoint state and restart before the configured lifetime limit.
+
+### Browser app
+
+The Next.js app provides:
+- streamer setup and source permissions;
+- monitoring state and event timeline;
+- candidate list with scores and reasons;
+- rendered preview;
+- project/timeline editor in a later phase;
+- approve, reject, regenerate and download controls;
+- usage and estimated cost display.
+
+## 3. Media access and platform adapters
+
+Define provider interfaces; do not make the renderer depend on any platform's URL format.
+
+Each adapter can provide:
+- channel identity and live status;
+- stream metadata and category;
+- chat/events, where official APIs permit;
+- native clip creation, where officially supported;
+- OAuth scopes and permission checks;
+- webhook validation and reconnect behavior.
+
+The MediaSource interface is separate. Supported source modes should be explicit:
+
+1. `creator_relay`: creator-owned encoder sends a secondary RTMPS/SRT feed to an authenticated Clipro ingest endpoint.
+2. `authorized_file`: creator provides an authorized recording or uploaded media file.
+3. `platform_native_clip`: a provider's official API/UI produces a clip; source download/edit rights must be independently verified.
+4. `unsupported`: no raw video processing until a permitted source is available.
+
+Never infer permission to download, record, edit, or monetize a public stream from visibility, chat access, or the existence of a share URL.
+
+### Ingest prototype
+
+Candidate path: MediaMTX receives an authenticated encrypted RTMPS feed; FFmpeg segments the stream and maintains a bounded rolling buffer. The deployment must validate public ingress, TLS termination, request authentication, per-session stream keys, egress and failure recovery before production.
+
+Do not expose an unauthenticated RTMP endpoint. Ingest keys must be high-entropy, individually revocable, scoped to one session, stored as secrets and excluded from logs.
+
+## 4. Signal and highlight pipeline
+
+1. Ingest video/audio with source timestamps and monotonic receive timestamps.
+2. Collect platform chat/events separately, retaining provider event IDs and timestamps.
+3. Extract low-cost signals:
+   - audio RMS/peaks and onset changes;
+   - speech/VAD;
+   - rolling ASR transcript;
+   - chat velocity and unique-user count;
+   - selected low-rate video frames;
+   - scene-change/motion signals.
+4. Generate candidate windows with configurable pre-roll and post-roll.
+5. Deduplicate overlapping windows and attach evidence.
+6. Score candidates with a deterministic baseline, then optionally use a vision-language model on a small set of selected frames.
+7. Preserve both source timestamps and offsets; account for ingest delay and source clock drift.
+
+A candidate record must explain why it exists (for example: chat burst + laughter + transcript phrase), not only contain a score. Chat bursts are not sufficient on their own; raids, giveaways, ads, bots and spam must be discounted.
+
+## 5. Editorial planning
+
+Do not render directly from model-generated prose. The editorial planner returns validated structured data against the timeline schema.
+
+The plan may contain:
+- a clear context-preserving hook;
+- one or more source segments;
+- trims and playback speed changes;
+- layout and crop tracking;
+- caption tracks with word/phrase timing;
+- optional original narrator script and TTS audio;
+- translated subtitles and optionally translated narration;
+- b-roll/illustrative inserts, only from licensed or user-provided media;
+- transitions and motion graphics;
+- overlays, titles, progress bars and CTAs;
+- background music and sound effects;
+- audio ducking, fades and loudness targets;
+- export profiles and a compliance checklist.
+
+The edit must not change the meaning of the speaker's statement. Do not fabricate quotes, reactions, context, or factual claims. Narration is clearly a separate narrator track; never clone a streamer's voice without explicit consent and applicable rights.
+
+### Quality policy
+
+- No transition/effect merely for decoration.
+- A hook may use a short payoff preview only if the chronology remains honest and does not spoil the moment unintentionally.
+- Captions must be checked against ASR and be readable in safe areas.
+- Narration must not cover important original dialogue.
+- Music/SFX must be licensed or user-provided and mixed below dialogue.
+- Keep a natural ending/payoff; avoid abrupt cuts.
+- Render output must pass audio/video probe, duration, frame, loudness and subtitle validation.
+- If the model is uncertain, produce a review warning rather than invent content.
+
+## 6. Rendering engine
+
+Use a renderer interface that accepts a validated timeline project and returns:
+- MP4 (H.264 video/AAC audio baseline);
+- poster/thumbnail;
+- caption sidecar (SRT/VTT);
+- timeline JSON/EDL;
+- render metadata and QA report.
+
+Recommended division:
+- Remotion: reusable React motion graphics, captions, title cards, kinetic text, layout and transitions.
+- FFmpeg: ingest segmentation, cuts, crop/scale, audio mixing, encode, probe and final muxing.
+- Pillow/SVG/Canvas may generate static graphics when needed.
+- TTS adapter: Kokoro initially; provider-neutral interface for future voices.
+- ASR adapter: faster-whisper initially; word timing retained in the timeline.
+
+Do not make the initial MVP depend on a paid model API. A provider-agnostic model interface permits adding a paid model later, with budget and privacy controls.
+
+## 7. Unified project timeline
+
+The timeline is source-agnostic. A project may originate from a live buffer, an uploaded file, an authorized platform-native clip or a future multi-file editor session.
+
+A track contains ordered, time-based clips. Clip items reference source assets and describe source in/out, timeline start, speed, transforms, effects, transitions and audio gain. Overlay/caption/voiceover/music/SFX are tracks too.
+
+The schema in `packages/timeline/schema.json` is the contract. Renderer and UI must validate against the same version. Do not place binary media in the JSON; reference asset IDs and signed/short-lived URLs.
+
+## 8. Data and storage
+
+MVP:
+- PostgreSQL is preferred for shared state if a managed free tier is available; SQLite may be used only for a single-worker development prototype.
+- Modal Volume for transient rolling segments and worker cache, not as a multi-writer database.
+- S3-compatible object storage adapter for durable rendered artifacts; local/Modal storage can be used during a prototype.
+- TTL cleanup for source buffers and rejected candidates.
+- Store media consent/authorization evidence and its scope, not only a boolean checkbox.
+
+Avoid writing large video blobs into the relational database. Use checksums, content types, byte sizes, retention metadata and owner IDs.
+
+## 9. Security and reliability
+
+- All API endpoints require workspace auth except verified provider webhooks and narrowly scoped ingest endpoints.
+- Validate Twitch EventSub signatures, Kick webhook signatures and YouTube API credentials according to the official docs.
+- Verify webhook timestamps and replay protections.
+- Encrypt OAuth tokens and ingest credentials at rest; keep them in a secret manager.
+- Use per-workspace RBAC, rate limits, resource quotas and job idempotency.
+- Sanitize FFmpeg arguments; never interpolate user text into shell commands.
+- Restrict URLs to prevent SSRF and block private/link-local addresses for any URL fetch feature.
+- Keep an audit trail for monitor start/stop, source authorization, render requests and human approvals.
+- Human approval is a hard server-side publish gate.
+
+## 10. Cost and compute strategy
+
+- One monitor at a time for MVP.
+- CPU first for FFmpeg stream copy/segmentation, VAD, chat aggregation and coarse signal extraction.
+- Transcribe only rolling audio windows; avoid repeated full-stream ASR.
+- Use a small low-rate frame sampler for visual detection.
+- Invoke GPU/VLM only for top-ranked candidates.
+- Limit rolling buffer retention and candidate count.
+- Expose minutes monitored, CPU/GPU seconds, storage and egress estimates.
+- Configure hard quotas and shutdown timers.
+- Modal credit is finite; a free allowance is for prototyping, not unlimited 24/7 monitoring.
+
+## 11. Future non-live video editor
+
+The editor is not a separate rendering stack. Uploaded media becomes a SourceAsset and the user creates the same timeline project.
+
+Future operations:
+- upload and proxy generation;
+- multi-file bins;
+- trim/split/ripple delete/reorder;
+- multi-track video/audio;
+- captions and keyframes;
+- overlay/graphic library;
+- transitions;
+- voiceover recording/TTS;
+- audio mixing;
+- reusable templates;
+- undo/redo and autosave;
+- export presets.
+
+The MVP must preserve stable asset IDs, source timebases, timeline timebases and project schema versioning so these features can be added without a rewrite.
