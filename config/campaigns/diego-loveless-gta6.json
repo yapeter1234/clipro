@@ -67,7 +67,9 @@
       "CA",
       "AU"
     ],
-    "analytics_verification": "post_publish_user_supplied_evidence"
+    "analytics_verification": "post_publish_user_supplied_evidence",
+    "engagement_rate_definition": "pending_confirmation_from_ClipLaunch_approval_process; do_not_assume_formula",
+    "tier1_audience_measurement": "post_publish_platform_analytics; user_supplied_evidence_or_supported_official_analytics"
   },
   "output": {
     "language": "en",
