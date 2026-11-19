@@ -61,13 +61,16 @@ No effect should be added merely for decoration. The editorial plan must preserv
 4. Build a deterministic render pipeline using a supplied local test file.
 5. Add a review queue; publishing remains disabled.
 
-**M1 — authorized Twitch pilot**
+**M1 — authorized Twitch no-OBS pilot**
 
-1. Verify an authorized live video feed from a creator/stream owner.
-2. Validate secure ingress to the worker.
-3. Monitor Twitch live status/chat through official APIs.
-4. Detect candidate moments and preserve pre/post-roll from a rolling buffer.
-5. Render one complete, polished short and return it for approval.
+1. Confirm the user has been added as a channel Editor by Diego, if Diego agrees to the Editor role's broader channel permissions.
+2. Authorize Clipro with the user's Twitch OAuth token and `editor:manage:clips` scope.
+3. Detect stream state and chat/events through supported Twitch APIs.
+4. Use Create Clip From VOD for candidate timestamps in the active broadcast VOD; poll for creation and download through Get Clips Download.
+5. Pass the authorized clip media into the shared editorial/render engine.
+6. Render one complete, polished short and return it for approval.
+
+If Editor authorization is not available, use only campaign-authorized clip files/VOD excerpts supplied by Diego or another documented permitted path. Do not use undocumented player URL extraction.
 
 Kick and YouTube adapters follow after the common ingest/render path is proven. Platform-specific capabilities and permissions must be validated independently.
 
