@@ -19,23 +19,24 @@ type SourceMetadata = {
   rights_status: RightsStatus;
   permission_confirmed: boolean;
 };
+type UploadSession = { upload_id: string; key: string; asset_id: string };
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 * 1024;
 const API_BASE = (process.env.NEXT_PUBLIC_CLIPRO_API_URL ?? "").replace(/\/$/, "");
 
-async function apiRequest<T>(path: string, token: string, body?: unknown): Promise<T> {
+async function apiRequest<T>(path: string, token: string, body: unknown): Promise<T> {
   if (!API_BASE) throw new Error("NEXT_PUBLIC_CLIPRO_API_URL is not configured.");
   const response = await fetch(API_BASE + path, {
-    method: body === undefined ? "GET" : "POST",
-    headers: { Authorization: "Bearer " + token, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    method: "POST",
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     let detail = "The Clipro API request failed.";
     try {
       const data = await response.json();
       detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail ?? data);
-    } catch { /* keep generic error */ }
+    } catch { /* Keep the generic error. */ }
     throw new Error(detail);
   }
   return response.json() as Promise<T>;
@@ -76,12 +77,14 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
   const [statusMessage, setStatusMessage] = useState("");
   const [assetId, setAssetId] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [needsFinalize, setNeedsFinalize] = useState(false);
   const metadataRef = useRef<SourceMetadata>({
     platform: "twitch", source_kind: "live_stream", streamer_id: "diegoloveless",
     campaign_id: "diego-gta", source_url: "https://www.twitch.tv/diegoloveless",
     rights_status: "pending_review", permission_confirmed: false,
   });
-  const assetIdRef = useRef("");
+  const sessionRef = useRef<UploadSession | null>(null);
+  const uploadedToR2Ref = useRef(false);
 
   const uppy = useMemo(() => {
     const instance = new Uppy<FileMeta, AwsBody>({
@@ -91,98 +94,57 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
     });
 
     instance.use(AwsS3, {
-      shouldUseMultipart: () => true,
+      shouldUseMultipart: true,
       getChunkSize: () => 32 * 1024 * 1024,
       limit: 1,
-      createMultipartUpload: async file => {
+      signRequest: async request => {
         const token = await getAccessToken();
-        const meta = metadataRef.current;
-        const result = await apiRequest<{ upload_id: string; key: string; asset_id: string }>("/api/v1/uploads", token, {
-          workspace_id: workspaceId,
-          original_filename: file.name,
-          content_type: file.type || "application/octet-stream",
-          file_size_bytes: file.size ?? 0,
-          platform: meta.platform,
-          source_kind: meta.source_kind,
-          acquisition_mode: acquisitionMode(meta),
-          streamer_id: meta.streamer_id.trim() || null,
-          campaign_id: meta.campaign_id.trim() || null,
-          source_url: meta.source_url.trim() || null,
-          permission_confirmed: meta.permission_confirmed,
-          rights_status: meta.rights_status,
-        });
-        assetIdRef.current = result.asset_id;
-        return { uploadId: result.upload_id, key: result.key };
-      },
-      signPart: async (_file, part) => {
-        const token = await getAccessToken();
-        return apiRequest<{ url: string }>("/api/v1/uploads/sign-part", token, {
-          uploadId: part.uploadId, key: part.key, partNumber: part.partNumber,
-        });
-      },
-      listParts: async (_file, part) => {
-        const token = await getAccessToken();
-        const result = await apiRequest<{ parts: Array<{ PartNumber: number; Size: number; ETag: string }> }>(
-          "/api/v1/uploads/list-parts", token, { uploadId: part.uploadId, key: part.key },
-        );
-        return result.parts;
-      },
-      completeMultipartUpload: async (_file, data) => {
-        const token = await getAccessToken();
-        const result = await apiRequest<{ asset_id: string }>("/api/v1/uploads/complete", token, {
-          uploadId: data.uploadId, key: data.key, parts: data.parts,
-        });
-        assetIdRef.current = result.asset_id;
-        return { location: "clipro://asset/" + result.asset_id };
-      },
-      abortMultipartUpload: async (_file, data) => {
-        const token = await getAccessToken();
-        await apiRequest("/api/v1/uploads/abort", token, { uploadId: data.uploadId, key: data.key });
+        return apiRequest<{ url: string }>("/api/v1/uploads/sign-request", token, request);
       },
     });
     return instance;
-  }, [workspaceId]);
+  }, []);
 
   useEffect(() => {
-    const progressHandler = (_file: unknown, value: { bytesUploaded: number; bytesTotal: number }) => {
-      if (value.bytesTotal > 0) setProgress(Math.round(value.bytesUploaded / value.bytesTotal * 100));
-    };
-    const uploadHandler = () => { setUploading(true); setStatusMessage("Uploading video parts directly to private storage…"); };
-    const completeHandler = (result: { successful: unknown[]; failed: unknown[] }) => {
+    uppy.on("upload", () => {
+      setUploading(true);
+      setStatusMessage("Uploading video parts directly to private R2 storage…");
+    });
+    uppy.on("upload-progress", (_file, value) => {
+      const total = value.bytesTotal ?? 0;
+      if (total > 0) setProgress(Math.round(value.bytesUploaded / total * 100));
+    });
+    uppy.on("complete", result => {
+      if ((result.failed ?? []).length > 0) setStatusMessage("Upload incomplete. Retry to resume completed parts.");
+      else if ((result.successful ?? []).length > 0) setStatusMessage("Video transfer completed. Verifying the stored asset…");
+    });
+    uppy.on("error", error => {
       setUploading(false);
-      if (result.failed.length) setStatusMessage("Upload incomplete. Review the error and retry.");
-      else if (result.successful.length) {
-        setAssetId(assetIdRef.current);
-        setProgress(100);
-        setStatusMessage("Source uploaded successfully. Media probing is the next step.");
-      }
-    };
-    const errorHandler = (error: Error) => { setUploading(false); setStatusMessage(error.message || "Upload failed."); };
-
-    uppy.on("upload", uploadHandler);
-    uppy.on("upload-progress", progressHandler);
-    uppy.on("complete", completeHandler);
-    uppy.on("error", errorHandler);
-
-    return () => {
-      uppy.off("upload", uploadHandler);
-      uppy.off("upload-progress", progressHandler);
-      uppy.off("complete", completeHandler);
-      uppy.off("error", errorHandler);
-      uppy.destroy();
-    };
+      setStatusMessage(error.message || "Upload failed.");
+    });
+    return () => { uppy.destroy(); };
   }, [uppy]);
 
   function saveMetadata(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    metadataRef.current = { platform, source_kind: sourceKind, streamer_id: streamerId, campaign_id: campaignId, source_url: sourceUrl, rights_status: rightsStatus, permission_confirmed: permissionConfirmed };
+    metadataRef.current = {
+      platform, source_kind: sourceKind, streamer_id: streamerId, campaign_id: campaignId,
+      source_url: sourceUrl, rights_status: rightsStatus, permission_confirmed: permissionConfirmed,
+    };
     setMetadataReady(true);
     setStatusMessage("Source details saved. Choose your video below.");
   }
 
   function chooseFile(file?: File) {
     if (!file) return;
-    if (file.size > MAX_FILE_SIZE) { setStatusMessage("This file exceeds Clipro's 20 GB source limit."); return; }
+    if (file.size > MAX_FILE_SIZE) {
+      setStatusMessage("This file exceeds Clipro's 20 GB source limit.");
+      return;
+    }
+    if (sessionRef.current) {
+      setStatusMessage("Finish the current upload before selecting another file. You can retry a partial upload.");
+      return;
+    }
     uppy.getFiles().forEach(existing => uppy.removeFile(existing.id));
     try {
       uppy.addFile({ name: file.name, type: file.type || "application/octet-stream", data: file, source: "Local" });
@@ -196,18 +158,73 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
     }
   }
 
+  async function finalize(session: UploadSession) {
+    const token = await getAccessToken();
+    const result = await apiRequest<{ asset_id: string; status: string }>(
+      "/api/v1/uploads/finalize", token, { uploadId: session.upload_id, key: session.key },
+    );
+    setAssetId(result.asset_id);
+    setNeedsFinalize(false);
+    setUploading(false);
+    setProgress(100);
+    setStatusMessage("Source uploaded and recorded. Media validation is the next step.");
+    sessionRef.current = null;
+    uploadedToR2Ref.current = false;
+  }
+
   async function startUpload() {
     if (!metadataReady) return setStatusMessage("Save the source details first.");
     if (!permissionConfirmed || rightsStatus === "pending_review") return setStatusMessage("Confirm source permission and rights basis first.");
-    if (!uppy.getFiles().length) return setStatusMessage("Choose a video file first.");
+    const file = uppy.getFiles()[0];
+    if (!file) return setStatusMessage("Choose a video file first.");
+
     setUploading(true);
-    setStatusMessage("Preparing secure multipart upload…");
     try {
-      const result = await uppy.upload();
-      if (result.failed.length) { setUploading(false); setStatusMessage("Some upload steps failed. You can retry."); }
+      if (uploadedToR2Ref.current && sessionRef.current) {
+        await finalize(sessionRef.current);
+        return;
+      }
+
+      if (!sessionRef.current) {
+        const token = await getAccessToken();
+        const meta = metadataRef.current;
+        const session = await apiRequest<UploadSession>("/api/v1/uploads", token, {
+          workspace_id: workspaceId,
+          original_filename: file.name,
+          content_type: file.type || "application/octet-stream",
+          file_size_bytes: file.size ?? 0,
+          platform: meta.platform,
+          source_kind: meta.source_kind,
+          acquisition_mode: acquisitionMode(meta),
+          streamer_id: meta.streamer_id.trim() || null,
+          campaign_id: meta.campaign_id.trim() || null,
+          source_url: meta.source_url.trim() || null,
+          permission_confirmed: meta.permission_confirmed,
+          rights_status: meta.rights_status,
+        });
+        sessionRef.current = session;
+        setAssetId(session.asset_id);
+        uppy.setFileState(file.id, {
+          s3Multipart: { uploadId: session.upload_id, key: session.key },
+        });
+      }
+
+      const uploadResult = await uppy.upload();
+      setUploading(false);
+      if (!uploadResult || (uploadResult.failed ?? []).length > 0) {
+        setStatusMessage("Upload incomplete. Retry to resume the parts already stored.");
+        return;
+      }
+      if ((uploadResult.successful ?? []).length > 0 && sessionRef.current) {
+        uploadedToR2Ref.current = true;
+        setNeedsFinalize(true);
+        setStatusMessage("Video transfer completed. Verifying object storage…");
+        await finalize(sessionRef.current);
+      }
     } catch (error) {
       setUploading(false);
-      setStatusMessage(error instanceof Error ? error.message : "Upload failed.");
+      setNeedsFinalize(uploadedToR2Ref.current);
+      setStatusMessage(error instanceof Error ? error.message : "Upload failed. Retry to continue.");
     }
   }
 
@@ -220,15 +237,10 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
           <form className="source-form" onSubmit={saveMetadata}>
             <div className="field-grid">
               <div className="field"><label htmlFor="platform">Source platform</label>
-                <select id="platform" value={platform} onChange={event => {
-                  const next = event.target.value as Platform;
-                  setPlatform(next);
-                  if (next === "upload") setSourceKind("uploaded_video");
-                  setMetadataReady(false);
-                }}>
+                <select id="platform" value={platform} onChange={event => { const next = event.target.value as Platform; setPlatform(next); if (next === "upload") setSourceKind("uploaded_video"); setMetadataReady(false); }}>
                   <option value="twitch">Twitch</option><option value="kick">Kick</option><option value="youtube">YouTube</option><option value="upload">Direct video upload</option>
                 </select>
-                <small>{youtube ? "Upload an authorized source file; a YouTube Clip URL alone cannot be edited." : "Choose where the original footage was captured."}</small>
+                <small>{youtube ? "Upload an authorized source file; a YouTube Clip link alone cannot be edited." : "Choose where the original footage was captured."}</small>
               </div>
               <div className="field"><label htmlFor="source-kind">Source type</label>
                 <select id="source-kind" value={sourceKind} onChange={event => { setSourceKind(event.target.value as SourceKind); setMetadataReady(false); }}>
@@ -237,7 +249,7 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
               </div>
               <div className="field"><label htmlFor="streamer-id">Streamer profile ID <span className="optional">OPTIONAL</span></label><input id="streamer-id" value={streamerId} onChange={event => { setStreamerId(event.target.value); setMetadataReady(false); }} placeholder="e.g. diegoloveless" /></div>
               <div className="field"><label htmlFor="campaign-id">Campaign ID <span className="optional">OPTIONAL</span></label><input id="campaign-id" value={campaignId} onChange={event => { setCampaignId(event.target.value); setMetadataReady(false); }} placeholder="e.g. diego-gta" /></div>
-              <div className="field field-full"><label htmlFor="source-url">Original stream / clip URL <span className="optional">REFERENCE ONLY</span></label><input id="source-url" type="url" value={sourceUrl} onChange={event => { setSourceUrl(event.target.value); setMetadataReady(false); }} placeholder="https://…" /><small>Stored as metadata only. Clipro never downloads video from this URL.</small></div>
+              <div className="field field-full"><label htmlFor="source-url">Original stream / clip URL <span className="optional">REFERENCE ONLY</span></label><input id="source-url" type="url" value={sourceUrl} onChange={event => { setSourceUrl(event.target.value); setMetadataReady(false); }} placeholder="https://…" /><small>Stored as metadata only. Clipro never downloads the video from this URL.</small></div>
             </div>
             <div className="rights-panel">
               <div className="rights-heading"><span className="shield">✓</span><div><strong>Source rights and permission</strong><p>Confirm you are allowed to edit and publish this footage.</p></div></div>
@@ -252,23 +264,22 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
           <div className="card-header"><div className="card-step">2</div><div><h2>Upload your video</h2><p>MP4, MOV, M4V, WebM or MKV · up to 20 GB</p></div><span className={"card-status " + (metadataReady ? "ready" : "")}>{metadataReady ? "READY" : "LOCKED"}</span></div>
           {!metadataReady ? <div className="locked-hint">Save the source details above to unlock upload.</div> : (
             <div className="upload-drop-area">
-              <div className="upload-symbol">↑</div>
-              <strong>{selectedName || "Drop a video here, or browse files"}</strong>
-              <p>{selectedName ? formatBytes(selectedSize) + " · Ready to upload" : "Choose a clip or authorized source video from your device."}</p>
-              <label className="file-picker-button">Browse video<input type="file" accept="video/*,.mkv" onChange={event => chooseFile(event.currentTarget.files?.[0])} disabled={uploading} /></label>
-              {selectedName && !assetId && <button className="primary-button upload-start-button" type="button" onClick={startUpload} disabled={uploading}>{uploading ? "Uploading…" : "Start secure upload"} <span>→</span></button>}
+              <div className="upload-symbol">↑</div><strong>{selectedName || "Choose a video to upload"}</strong>
+              <p>{selectedName ? formatBytes(selectedSize) + " · Ready to upload" : "Select a clip or authorized source video from your device."}</p>
+              <label className="file-picker-button">Browse video<input type="file" accept="video/*,.mkv" onChange={event => chooseFile(event.currentTarget.files?.[0])} disabled={uploading || !!sessionRef.current} /></label>
+              {selectedName && !assetId && <button className="primary-button upload-start-button" type="button" onClick={startUpload} disabled={uploading}>{needsFinalize ? "Verify completed upload" : uploading ? "Uploading…" : "Start secure upload"} <span>→</span></button>}
               {uploading && <div className="progress-wrap"><div className="progress-label"><span>Uploading parts</span><strong>{progress}%</strong></div><div className="progress-track"><div className="progress-fill" style={{ width: progress + "%" }} /></div></div>}
             </div>
           )}
           {statusMessage && <div className="upload-status">{statusMessage}</div>}
-          {assetId && <div className="asset-result"><span className="asset-check">✓</span><div><strong>Source stored successfully</strong><small>Asset ID: {assetId}</small></div></div>}
+          {assetId && <div className="asset-result"><span className="asset-check">✓</span><div><strong>{needsFinalize ? "Transfer complete · verifying asset" : "Source stored successfully"}</strong><small>Asset ID: {assetId}</small></div></div>}
         </section>
       </div>
       <aside className="guide-column">
         <section className="guide-card"><div className="guide-label">SOURCE GUIDE</div><h3>How to get your clip</h3>
           <div className="guide-step"><span>01</span><div><strong>Create or select the source</strong><p>{platform === "kick" ? "Use Kick's native clip tool on a live stream or past broadcast." : youtube ? "Use a source file supplied by the creator or campaign." : platform === "upload" ? "Choose a video you own or are authorized to edit." : "Create a Twitch clip while live or from a VOD, when clipping is enabled."}</p></div></div>
           <div className="guide-step"><span>02</span><div><strong>Get the video file</strong><p>{platform === "twitch" ? "Download a clip you created from Twitch Clips Manager." : platform === "kick" ? "Download a clip you created from its Kick clip page." : "Select the authorized source file."}</p></div></div>
-          <div className="guide-step"><span>03</span><div><strong>Upload it here</strong><p>Clipro stores your file privately and validates the actual media before AI analysis starts.</p></div></div>
+          <div className="guide-step"><span>03</span><div><strong>Upload it here</strong><p>Clipro stores the file privately and validates actual media before AI analysis starts.</p></div></div>
           <a className="guide-link" href={platform === "kick" ? "https://kick.com" : youtube ? "https://www.youtube.com" : "https://www.twitch.tv/diegoloveless/videos"} target="_blank" rel="noreferrer">Open {platform === "kick" ? "Kick" : youtube ? "YouTube" : "Twitch"} <span>↗</span></a>
         </section>
         <section className="pipeline-card"><div className="guide-label">WHAT HAPPENS NEXT</div><h3>From footage to finished edit</h3>

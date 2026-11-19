@@ -1,7 +1,8 @@
-"""Authenticated Uppy/R2 multipart upload endpoints."""
+"""Authenticated Uppy 6 / Cloudflare R2 multipart upload endpoints."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,17 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from ..auth import CurrentUser, get_current_user
 from ..database import fetch_upload_session, get_pool, require_workspace_membership
 from ..ingestion import UploadPreflightRequest, validate_upload_preflight
-from ..r2_storage import (
-    abort_multipart_upload,
-    build_storage_key,
-    complete_multipart_upload,
-    create_multipart_upload,
-    get_s3_client,
-    get_bucket_name,
-    head_object,
-    list_all_parts,
-    sign_part,
-)
+from ..r2_storage import abort_multipart_upload, build_storage_key, create_multipart_upload, head_object, sign_multipart_request
 from ..settings import get_settings
 
 router = APIRouter(prefix="/api/v1/uploads", tags=["uploads"])
@@ -39,31 +30,24 @@ class UploadCreateResponse(BaseModel):
     expires_at: datetime
 
 
-class UploadPartRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    uploadId: str = Field(min_length=1, max_length=1024)
-    key: str = Field(min_length=1, max_length=1024)
-    partNumber: int = Field(ge=1, le=10000)
-
-
 class UploadPartsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     uploadId: str = Field(min_length=1, max_length=1024)
     key: str = Field(min_length=1, max_length=1024)
 
 
+class S3SignRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    method: Literal["GET", "PUT", "POST", "DELETE"]
+    key: str = Field(min_length=1, max_length=1024)
+    uploadId: str = Field(min_length=1, max_length=1024)
+    partNumber: int | None = Field(default=None, ge=1, le=10000)
+
+
 class CompletedPart(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
     part_number: int = Field(alias="PartNumber", ge=1, le=10000)
     etag: str = Field(alias="ETag", min_length=1, max_length=200)
-
-
-class UploadCompleteRequest(UploadPartsRequest):
-    parts: list[CompletedPart] = Field(min_length=1, max_length=10000)
-
-
-class UploadAbortRequest(UploadPartsRequest):
-    pass
 
 
 def _validate_client_parts(client_parts: list[CompletedPart], server_parts: list[dict]) -> list[dict]:
@@ -75,7 +59,6 @@ def _validate_client_parts(client_parts: list[CompletedPart], server_parts: list
         {"PartNumber": int(item["PartNumber"]), "ETag": str(item["ETag"])}
         for item in server_parts
     ]
-
     if not actual:
         raise HTTPException(status_code=400, detail="No upload parts were found in object storage.")
     if [part["PartNumber"] for part in submitted] != list(range(1, len(submitted) + 1)):
@@ -88,7 +71,6 @@ def _validate_client_parts(client_parts: list[CompletedPart], server_parts: list
 async def _authorize_upload(upload_id: str, key: str, user: CurrentUser, *, write: bool = True) -> dict:
     session = await fetch_upload_session(upload_id, key)
     await require_workspace_membership(session["workspace_id"], user.user_id, write=write)
-
     if session["uploaded_by"] != user.user_id:
         raise HTTPException(status_code=403, detail="Only the uploader can manage this upload session.")
     if session["expires_at"] < datetime.now(timezone.utc) and session["status"] == "uploading":
@@ -97,18 +79,14 @@ async def _authorize_upload(upload_id: str, key: str, user: CurrentUser, *, writ
 
 
 @router.post("", response_model=UploadCreateResponse)
-async def create_upload(
-    submission: UploadCreateRequest,
-    user: CurrentUser = Depends(get_current_user),
-):
+async def create_upload(submission: UploadCreateRequest, user: CurrentUser = Depends(get_current_user)):
     payload = submission.model_dump(exclude={"workspace_id"})
     preflight = validate_upload_preflight(UploadPreflightRequest.model_validate(payload))
     if not preflight.accepted:
         raise HTTPException(status_code=422, detail={"errors": preflight.errors, "warnings": preflight.warnings})
-
     await require_workspace_membership(submission.workspace_id, user.user_id, write=True)
-    settings = get_settings()
 
+    settings = get_settings()
     if submission.file_size_bytes > settings.upload_max_file_size_bytes:
         raise HTTPException(status_code=413, detail="The file exceeds the configured upload limit.")
 
@@ -170,13 +148,15 @@ async def create_upload(
     )
 
 
-@router.post("/sign-part")
-async def sign_upload_part(request: UploadPartRequest, user: CurrentUser = Depends(get_current_user)):
+@router.post("/sign-request")
+async def sign_s3_request(request: S3SignRequest, user: CurrentUser = Depends(get_current_user)):
+    """Presign one Uppy 6 S3 operation after checking the durable upload session."""
     session = await _authorize_upload(request.uploadId, request.key, user)
     if session["status"] != "uploading":
         raise HTTPException(status_code=409, detail="Upload is not active.")
     url = await run_in_threadpool(
-        sign_part,
+        sign_multipart_request,
+        method=request.method,
         key=request.key,
         upload_id=request.uploadId,
         part_number=request.partNumber,
@@ -184,46 +164,22 @@ async def sign_upload_part(request: UploadPartRequest, user: CurrentUser = Depen
     return {"url": url}
 
 
-@router.post("/list-parts")
-async def list_upload_parts(request: UploadPartsRequest, user: CurrentUser = Depends(get_current_user)):
-    session = await _authorize_upload(request.uploadId, request.key, user)
-    if session["status"] != "uploading":
-        return {"parts": []}
-    parts = await run_in_threadpool(list_all_parts, key=request.key, upload_id=request.uploadId)
-    return {
-        "parts": [
-            {"PartNumber": part["PartNumber"], "Size": part["Size"], "ETag": part["ETag"]}
-            for part in parts
-        ]
-    }
-
-
-@router.post("/complete")
-async def complete_upload(request: UploadCompleteRequest, user: CurrentUser = Depends(get_current_user)):
+@router.post("/finalize")
+async def finalize_upload(request: UploadPartsRequest, user: CurrentUser = Depends(get_current_user)):
+    """Verify the completed object in R2 before marking its Clipro asset uploaded."""
     session = await _authorize_upload(request.uploadId, request.key, user)
     if session["status"] == "completed":
         return {"asset_id": str(session["asset_id"]), "status": "uploaded"}
     if session["status"] != "uploading":
         raise HTTPException(status_code=409, detail="Upload is not active.")
 
-    server_parts = await run_in_threadpool(list_all_parts, key=request.key, upload_id=request.uploadId)
-    parts = _validate_client_parts(request.parts, server_parts)
-    total_bytes = sum(int(part["Size"]) for part in server_parts)
-
-    if total_bytes != session["file_size_bytes"]:
-        raise HTTPException(status_code=400, detail="Uploaded byte count does not match the declared file size.")
-    if total_bytes > get_settings().upload_max_file_size_bytes:
-        raise HTTPException(status_code=413, detail="Uploaded media exceeds the configured upload limit.")
-
-    await run_in_threadpool(
-        complete_multipart_upload,
-        key=request.key,
-        upload_id=request.uploadId,
-        parts=parts,
-    )
     object_info = await run_in_threadpool(head_object, key=request.key)
-    if int(object_info.get("ContentLength", -1)) != total_bytes:
-        raise HTTPException(status_code=502, detail="Object storage returned an unexpected object size.")
+    total_bytes = int(object_info.get("ContentLength", -1))
+    if total_bytes != session["file_size_bytes"]:
+        raise HTTPException(status_code=400, detail="Stored object size does not match the declared file size.")
+    metadata = object_info.get("Metadata") or {}
+    if metadata.get("clipro-asset-id") != str(session["asset_id"]):
+        raise HTTPException(status_code=400, detail="Stored object metadata does not match the expected asset.")
 
     pool = await get_pool()
     async with pool.acquire() as connection:
@@ -238,12 +194,11 @@ async def complete_upload(request: UploadCompleteRequest, user: CurrentUser = De
                 "UPDATE public.media_assets SET state='uploaded', completed_at=now() WHERE asset_id=$1",
                 session["asset_id"],
             )
-
     return {"asset_id": str(session["asset_id"]), "status": "uploaded", "size_bytes": total_bytes}
 
 
 @router.post("/abort")
-async def abort_upload(request: UploadAbortRequest, user: CurrentUser = Depends(get_current_user)):
+async def abort_upload(request: UploadPartsRequest, user: CurrentUser = Depends(get_current_user)):
     session = await _authorize_upload(request.uploadId, request.key, user)
     if session["status"] == "completed":
         raise HTTPException(status_code=409, detail="Completed uploads cannot be aborted.")
@@ -273,7 +228,6 @@ async def get_upload_status(asset_id: UUID, user: CurrentUser = Depends(get_curr
                FROM public.media_assets WHERE asset_id=$1""",
             asset_id,
         )
-
     if row is None:
         raise HTTPException(status_code=404, detail="Asset was not found.")
     await require_workspace_membership(row["workspace_id"], user.user_id, write=False)

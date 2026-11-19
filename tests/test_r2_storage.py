@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from services.api.app.routers.uploads import CompletedPart, _validate_client_parts
-from services.api.app.r2_storage import build_storage_key
+from services.api.app.r2_storage import build_storage_key, sign_multipart_request
 
 
 def test_storage_key_is_server_generated_and_uses_safe_extension() -> None:
@@ -58,3 +58,31 @@ def test_part_numbers_must_be_contiguous() -> None:
     with pytest.raises(HTTPException) as exc:
         _validate_client_parts(client_parts, server_parts)
     assert exc.value.status_code == 400
+
+
+def test_sign_multipart_request_uses_presigned_part_operation(monkeypatch) -> None:
+    class FakeS3:
+        def __init__(self):
+            self.call = None
+
+        def generate_presigned_url(self, **kwargs):
+            self.call = kwargs
+            return "https://r2.test/presigned"
+
+    from services.api.app import r2_storage
+    fake = FakeS3()
+    monkeypatch.setattr(r2_storage, "get_s3_client", lambda: fake)
+    monkeypatch.setattr(r2_storage, "get_bucket_name", lambda: "clipro-private")
+    result = sign_multipart_request(
+        method="PUT", key="workspace/source/video.mp4", upload_id="upload-123", part_number=4
+    )
+    assert result == "https://r2.test/presigned"
+    assert fake.call["ClientMethod"] == "upload_part"
+    assert fake.call["Params"]["UploadId"] == "upload-123"
+    assert fake.call["Params"]["PartNumber"] == 4
+    assert fake.call["HttpMethod"] == "PUT"
+
+
+def test_sign_multipart_request_rejects_missing_part_number() -> None:
+    with pytest.raises(ValueError, match="part number"):
+        sign_multipart_request(method="PUT", key="clip.mp4", upload_id="upload-123")
