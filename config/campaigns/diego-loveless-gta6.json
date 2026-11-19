@@ -1,68 +1,148 @@
 {
-  "campaign_id": "diego-loveless-gta6",
-  "profile_version": "0.1.1",
+  "campaign_id": "diego-loveless-gta",
+  "profile_version": "0.2.0",
   "creator": {
     "display_name": "DiegoLoveless",
-    "twitch_login": "diegoloveless",
-    "twitch_url": "https://twitch.tv/diegoloveless"
-  },
-  "source": {
     "platform": "twitch",
-    "source_channel_url": "https://twitch.tv/diegoloveless",
-    "required_game": "Grand Theft Auto VI",
-    "required_creator_visible": true,
-    "acquisition_mode": "twitch_vod_clip",
-    "obs_relay_available": false,
-    "editor_authorization_status": "not_confirmed",
-    "fallback": "campaign_authorized_media_file"
+    "channel_login": "diegoloveless",
+    "channel_url": "https://twitch.tv/diegoloveless"
   },
-  "content": {
-    "language": "en",
-    "moment_types": [
-      "funny_reaction",
-      "insane_gameplay",
-      "unexpected_moment",
-      "high_energy_interaction"
+  "source_policy": {
+    "allowed_platforms": [
+      "twitch"
     ],
-    "must_feature_creator_playing_required_game": true,
-    "must_include_clear_twitch_cta": true,
-    "cta_destination": "https://twitch.tv/diegoloveless",
-    "cta_copy": null,
-    "cta_placement": "pending_full_rules_review"
+    "allowed_source_types": [
+      "live_stream",
+      "past_broadcast"
+    ],
+    "acquisition_mode": "viewer_native_clip_manual_download",
+    "creator_obs_relay": false,
+    "editor_role_required": false,
+    "editor_api_enabled": false,
+    "file_upload_required": true,
+    "screen_recordings_allowed": false,
+    "permitted_capture_instructions": "docs/INGESTION_NO_OBS.md#twitch"
   },
-  "editing_preferences": {
-    "full_editorial_treatment": true,
+  "campaign_window": {
+    "effective_from": "2026-11-18",
+    "duration_days": 7,
+    "effective_until_exclusive": "2026-11-25",
+    "timezone": null,
+    "temporary_rule": "Only Grand Theft Auto content from Diego's Twitch gaming streams during this window."
+  },
+  "content_rules": {
+    "allowed_game_franchise": "Grand Theft Auto",
+    "priority_game": "Grand Theft Auto VI",
+    "determine_exact_game_title_from_video": true,
+    "allowed_moments": [
+      "funny_reactions",
+      "standout_gameplay",
+      "speedrun_highlights",
+      "unexpected_entertaining_moments"
+    ],
+    "require_creator_visible": true,
+    "require_creator_playing_game": true,
+    "prohibit_irl": true,
+    "prohibit_other_games_during_campaign_window": true,
+    "never_make_creator_look_bad": true,
+    "require_clear_hook_and_payoff": true,
+    "prohibit_low_effort": true,
+    "prohibit_random_moments": true,
+    "prohibit_screen_recordings": true,
+    "prohibit_1_to_1_reuse": true,
+    "max_near_identical_reuses": 5
+  },
+  "publishing_rules": {
+    "clipro_publishing_enabled": false,
+    "user_publishes_manually": true,
+    "allowed_pages": "any",
+    "bio_requirement": false,
+    "likes_must_be_visible": true,
+    "min_post_live_days": 30,
+    "min_engagement_rate": 0.008,
+    "min_tier1_audience_share": 0.4,
+    "tier1_countries": [
+      "US",
+      "GB",
+      "CA",
+      "AU"
+    ],
+    "analytics_verification": "post_publish_user_supplied_evidence"
+  },
+  "output": {
+    "language": "en",
+    "required_cta_destination": "https://twitch.tv/diegoloveless",
+    "cta_required": true,
+    "cta_placement": [
+      "on_screen",
+      "caption"
+    ],
+    "required_hashtags": [
+      "#GTA",
+      "#DiegoLoveless"
+    ],
+    "optional_hashtags": [
+      "#GrandTheftAuto",
+      "#Speedrun"
+    ],
+    "game_specific_hashtag_must_match_visual_title": true,
+    "style": "streamer_brainrot",
     "dynamic_captions": true,
     "purposeful_transitions": true,
     "motion_graphics": true,
-    "original_english_voiceover_optional": true,
+    "optional_original_voiceover": true,
     "licensed_music_only": true,
     "licensed_sound_effects_only": true,
     "creator_voice_cloning": false,
-    "external_broll": "pending_full_rules_review",
-    "heavy_editing": "pending_full_rules_review"
+    "overlay_asset_folder": "https://drive.google.com/drive/folders/1PzanQArZXGwy3C2M1SLIMFy8eMCKECTe?usp=sharing"
   },
-  "publishing": {
-    "automatic_publishing": false,
-    "manual_user_publishing_only": true,
-    "clipro_publish_enabled": false
-  },
-  "rules": {
-    "source_url": "https://app.notion.com/p/DiegoLoveless-GTA-6-Full-Rules-Brief-4038e33583238129bbc3f689497ad8db",
-    "full_text_verified": false,
-    "last_reviewed": "2026-11-19",
-    "must_import_before_production": true
-  },
+  "pre_posting_guides": [
+    {
+      "name": "3-day account warmup",
+      "url": "https://app.notion.com/p/pNew-Account-Warm-Up-Process-TikTok-Instagram-Reels-3-Day-Plan-3e38e335832381d4a29dc38080a24350?pvs=21",
+      "content_imported": false
+    },
+    {
+      "name": "ClipLaunch approval process",
+      "url": "https://app.notion.com/p/ClipLaunch-Approval-Process-3e38e335832380b1b900f827ce616dcd?pvs=21",
+      "content_imported": false
+    },
+    {
+      "name": "Tier 1 audience targeting",
+      "url": "https://app.notion.com/p/How-to-Target-Tier-1-Audience-3e38e335832381e79ec0e3bb17145a20?pvs=21",
+      "content_imported": false
+    }
+  ],
   "references": [
     {
       "url": "https://www.instagram.com/p/DbOdutpP942/",
-      "kind": "editing_reference",
-      "inspected": false
+      "priority": "normal",
+      "purpose": "editing_style_only"
+    },
+    {
+      "url": "https://www.instagram.com/reel/DctaNCtgpvf/",
+      "priority": "normal",
+      "purpose": "editing_style_only"
+    },
+    {
+      "url": "https://www.instagram.com/reel/DZYFYUTgyVp/",
+      "priority": "normal",
+      "purpose": "editing_style_only"
     },
     {
       "url": "https://www.instagram.com/reel/DfXs6wXvV8g/",
-      "kind": "editing_reference",
-      "inspected": false
+      "priority": "high",
+      "purpose": "editing_style_only"
+    },
+    {
+      "url": "https://www.instagram.com/reel/DfS_wB8B6l5/",
+      "priority": "high",
+      "purpose": "editing_style_only"
     }
-  ]
+  ],
+  "policy_status": {
+    "notion_full_rules_supplied": true,
+    "additional_warmup_approval_audience_guides_supplied": false,
+    "visual_reference_media_inspected": false
+  }
 }
