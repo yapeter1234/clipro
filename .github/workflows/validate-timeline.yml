@@ -5,13 +5,16 @@ on:
     paths:
       - "packages/timeline/**"
       - "services/api/**"
+      - "services/worker/**"
       - "tests/**"
       - "requirements-dev.txt"
       - ".github/workflows/validate-timeline.yml"
   pull_request:
     paths:
       - "packages/timeline/**"
-      - "tests/test_timeline_schema.py"
+      - "services/api/**"
+      - "services/worker/**"
+      - "tests/**"
       - "requirements-dev.txt"
       - ".github/workflows/validate-timeline.yml"
   workflow_dispatch:
@@ -32,7 +35,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install validation dependencies
-        run: python -m pip install --upgrade pip jsonschema pytest httpx websockets
+        run: python -m pip install --upgrade pip jsonschema pytest httpx "websockets>=13,<16"
 
       - name: Validate timeline schema and example
         run: python -m pytest -q tests
