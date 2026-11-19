@@ -23,6 +23,7 @@ class ChatSample:
     user_id: str | None
     username: str | None
     text: str
+    message_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +65,7 @@ class ChatSpikeDetector:
         self.burst_ratio = burst_ratio
         self.cooldown_seconds = cooldown_seconds
         self.history: deque[ChatSample] = deque()
+        self.seen_message_ids: set[str] = set()
         self.last_spike_at: datetime | None = None
         self.max_history_seconds = max_history_seconds
 
@@ -77,6 +79,15 @@ class ChatSpikeDetector:
         self._prune(now)
         if not message.text.strip() or NOISE_RE.search(message.text):
             return None
+        if message.message_id and message.message_id in self.seen_message_ids:
+            return None
+        if message.message_id:
+            self.seen_message_ids.add(message.message_id)
+            if len(self.seen_message_ids) > 20_000:
+                # Bounded memory for a long-running stream. Old IDs are only
+                # retained for duplicate protection during the active window.
+                self.seen_message_ids.clear()
+                self.seen_message_ids.add(message.message_id)
 
         self.history.append(message)
         current_end = now.timestamp()
@@ -95,8 +106,9 @@ class ChatSpikeDetector:
         if len(current) < self.min_messages:
             return None
         unique_users = {
-            item.user_id or item.username or f"anon-{index}"
-            for index, item in enumerate(current)
+            item.user_id or item.username
+            for item in current
+            if item.user_id or item.username
         }
         if len(unique_users) < self.min_unique_users:
             return None
