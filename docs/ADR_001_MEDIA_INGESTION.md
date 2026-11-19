@@ -5,7 +5,7 @@
 
 ## Decision
 
-Next.js is the browser studio. Uppy with its AWS S3 plugin manages browser uploads using S3 multipart callbacks. Cloudflare R2 stores original media, proxies, thumbnails, timeline artifacts and renders in a private bucket. Supabase Auth + Postgres provides identity, workspace membership and asset/job records. FastAPI owns source validation and upload orchestration. Modal runs short-lived media workers. FFmpeg/ffprobe is the deterministic media foundation.
+Next.js is the browser studio. Uppy with its AWS S3 plugin manages multipart uploads. Cloudflare R2 stores source media, proxies, thumbnails, timelines and renders in a private bucket. Supabase Auth + Postgres provides identity, workspace membership and asset/job records. FastAPI owns source validation and upload orchestration. Modal runs short-lived media workers. FFmpeg/ffprobe is the deterministic media foundation.
 
 ## Upload sequence
 
@@ -15,7 +15,7 @@ Next.js is the browser studio. Uppy with its AWS S3 plugin manages browser uploa
 4. Uppy requests short-lived presigned URLs for each part and uploads bytes directly to R2.
 5. Uppy submits ETags and part numbers. FastAPI compares them with R2's multipart inventory before completing the object.
 6. FastAPI verifies the final object byte length and records the asset as uploaded.
-7. A Modal worker probes actual media, computes a checksum, and creates a proxy/thumbnail.
+7. A Modal worker probes media, computes a checksum and creates a proxy/thumbnail.
 8. The browser displays the validated asset and permits range selection or analysis.
 
 ## Security
@@ -28,10 +28,11 @@ Next.js is the browser studio. Uppy with its AWS S3 plugin manages browser uploa
 - Browser MIME/extension checks are preliminary; ffprobe checks actual media after upload.
 - Filenames and source URLs are untrusted metadata. The API never fetches arbitrary public video URLs.
 - Multipart completion validates exact R2 part inventory, ETags and total byte count.
+- API CORS allows only CLIPRO_WEB_ORIGINS. R2 bucket CORS must allow the app origin and expose ETag.
 - No social publishing credentials or automatic publishing endpoint exist.
 
 ## Setup dependencies
 
-Apply supabase/migrations/202611190001_m1_media_uploads.sql, create the private R2 bucket, configure R2 CORS and set variables from services/api/.env.example as Modal Secrets or secure service environment variables. Do not commit secret values. Do not deploy publicly until auth, database and R2 settings are configured.
+Apply supabase/migrations/202611190001_m1_media_uploads.sql, create the private R2 bucket, configure R2 CORS and set variables from services/api/.env.example as secure environment variables or Modal Secrets. Do not commit secret values. Do not deploy publicly until auth, database and R2 settings are configured.
 
-The browser uploader and Modal ffprobe worker remain separate integration steps. The R2 and Supabase integrations have not yet been exercised against real account resources.
+The browser intake UI is in apps/web. Media probing, AI analysis and rendering are separate worker milestones and have not yet been connected.
