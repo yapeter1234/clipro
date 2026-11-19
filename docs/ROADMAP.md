@@ -1,110 +1,85 @@
 # Roadmap and acceptance criteria
 
-## M0 — repository and contracts
+## M0 — contracts and product structure
+- [x] Repository scaffold, timeline schema and campaign/style architecture.
+- [x] Define manual source acquisition boundaries.
+- [x] Add source policy for Twitch/Kick/YouTube live and past broadcasts.
+- [x] Add tests for platform source constraints.
+- [ ] Add generic streamer/campaign/style profile CRUD.
+- [ ] Add CI coverage for all API/worker modules and config JSON.
+- [ ] Add test media fixtures and source probe.
 
-- [x] Initialize repository and product README.
-- [ ] Define versioned timeline schema.
-- [ ] Document system boundaries, permission model and data retention.
-- [ ] Add lint/type/test workflow.
-- [ ] Add a deterministic test fixture (synthetic media; no third-party stream).
+**Exit:** a user can define a creator/campaign profile without changing code; source policies correctly describe live vs past video for each platform.
 
-**Exit:** schema validates sample projects; CI checks JSON and Python formatting/type tests.
+## M1 — browser source intake
+- [ ] Add browser upload UI with resumable/chunked upload.
+- [ ] Add source metadata form (platform, creator/channel, live/past/uploaded, source URL/clip URL, campaign, authorization).
+- [ ] Add media probe (ffprobe) and file validation.
+- [ ] Add source-range selector for long authorized VOD files.
+- [ ] Add capture instructions and file-download guide per platform.
+- [ ] Enforce no public-URL downloading in the backend.
+- [ ] Add upload storage abstraction, checksum and TTL cleanup.
 
-## M1 — Diego Twitch live-VOD clip acquisition (no OBS)
+**Exit:** user can upload a manually downloaded Twitch/Kick clip or an authorized source file and start an editing job in a browser.
 
-- [x] Record the no-OBS Twitch VOD clip strategy and required scope.
-- [x] Add initial official Twitch Helix client for live status, VOD listing, VOD clip creation, polling, and clip download URL lookup.
-- [ ] Confirm Diego/campaign permission and add the user's Twitch account as a channel Editor, if accepted.
-- [ ] Register a Twitch Developer application and configure the OAuth callback.
-- [ ] Implement token validation, encrypted token storage and the `editor:manage:clips` scope flow.
-- [ ] Find the active stream VOD and map detected moments to VOD offsets.
-- [ ] Monitor approved chat/event signals and generate candidate timestamps.
-- [ ] Request VOD clips, poll creation, fetch temporary media URLs promptly and store source media in temporary workspace storage.
-- [ ] Add cleanup, retry, rate limit handling and cost quotas.
-- [ ] Run integration tests against an authorized test channel.
+## M2 — universal analysis pipeline
+- [ ] Transcribe and inspect complete short clips.
+- [ ] Chunk and analyze long uploaded VODs.
+- [ ] Detect highlights using ASR, audio energy/VAD and visual sampling.
+- [ ] Add optional chat/event metadata as a signal, never as source media.
+- [ ] Detect duplicate/reused moments.
+- [ ] Add creator/game/topic campaign compliance gate.
+- [ ] Return ranked moments with reason and timestamps.
 
-**Exit:** a single authorized active Twitch broadcast can produce a downloadable source clip without an OBS feed, then pass through the shared editor. If Editor authorization is unavailable, use only permitted creator/campaign-supplied source files.
+**Exit:** the same analysis works for live-origin native clips and historical VOD files from any configured streamer.
 
-## M2 — platform metadata/chat adapters
+## M3 — professional editing engine
+- [ ] Remotion compositions and reusable style templates.
+- [ ] Dynamic word-synchronized captions.
+- [ ] Context-aware hook and title treatment.
+- [ ] Purposeful transitions, zooms, punch-ins and motion graphics.
+- [ ] Smart facecam/gameplay layout and reframe.
+- [ ] Optional original narrator voiceover using Kokoro.
+- [ ] Licensed music/SFX library and rights metadata.
+- [ ] Voice/music ducking, normalization and final audio QA.
+- [ ] CTA/hashtag overlays from campaign profile.
+- [ ] FFmpeg final export and quality report.
 
-- [ ] Twitch Helix/EventSub adapter (OAuth, signature verification, event subscription lifecycle).
-- [ ] Kick public developer API/webhook adapter (OAuth/scopes and signature verification).
-- [ ] YouTube Data API + Live Chat adapter (quota handling and reconnect).
-- [ ] Normalize events to a provider-neutral schema.
-- [ ] Test offline, private, restricted and permission-denied states.
+**Exit:** output is a polished 9:16 MP4 with full editorial treatment, correct captions/CTA and campaign-specific rules.
 
-**Exit:** the same monitor state model works for all three platforms; adapters report unsupported capabilities accurately.
+## M4 — review dashboard
+- [ ] Preview, approve/reject/regenerate/download.
+- [ ] Expose timeline project and caption sidecar.
+- [ ] Enforce publication disabled server-side.
+- [ ] Record user-posted URL and live-since date.
+- [ ] Remind user about campaign retention period.
+- [ ] Collect post-publish metrics and analytics evidence.
 
-## M3 — highlight intelligence
+**Exit:** every rendered clip stays private until the user downloads and publishes manually.
 
-- [ ] Audio level/onset events.
-- [ ] Silero VAD.
-- [ ] Streaming/rolling faster-whisper transcription.
-- [ ] Chat velocity, unique users and hype/emote signals.
-- [ ] Scene-change/motion detection.
-- [ ] Candidate windows with pre/post-roll.
-- [ ] Overlap deduplication and explainable scoring.
-- [ ] Optional selected-frame VLM evaluation.
+## M5 — additional source adapters
+- [ ] Twitch viewer-native clip workflow documentation/instructions; optional Editor API remains disabled unless separately authorized.
+- [ ] Kick viewer-native clip workflow documentation/instructions.
+- [ ] YouTube Clip reference storage and authorized-file workflow.
+- [ ] Optional creator-authorized direct relay for channels that provide it.
+- [ ] Platform-specific capability tests and UI messages.
 
-**Exit:** on a labeled test recording, candidates contain meaningful context and evidence; false-positive rate is measurable.
+**Exit:** user can select Twitch, Kick or YouTube and is guided to a supported source method for live or past material.
 
-## M4 — professional automatic editor
-
-- [ ] Timeline project schema and validator.
-- [ ] Source-segment trimming and beat-aware pacing.
-- [ ] Vertical layouts, safe areas and facecam tracking.
-- [ ] Remotion composition system.
-- [ ] Animated captions and word emphasis.
-- [ ] Hook/title cards and motion graphics.
-- [ ] Optional separate narrator script + Kokoro TTS.
-- [ ] Translation/subtitle tracks.
-- [ ] Music/SFX library with rights metadata.
-- [ ] Ducking, fades, loudness and true-peak checks.
-- [ ] FFmpeg final render and output validation.
-- [ ] QA report and reproducible render metadata.
-
-**Exit:** one test candidate becomes a polished 9:16 video with synchronized captions, optional narration, purposeful motion/transitions, balanced audio and valid MP4. All inserted assets have rights metadata.
-
-## M5 — approval dashboard
-
-- [ ] Candidate queue and score evidence.
-- [ ] Video player and review metadata.
-- [ ] Approve/reject/regenerate actions.
-- [ ] Download MP4, caption sidecar and project JSON.
-- [ ] Server-side publish gate (publishing adapter remains disabled).
-- [ ] User-visible usage and cost information.
-
-**Exit:** no publish operation can succeed unless a human approval record exists for the exact render version.
-
-## M6 — platform publishing (later)
-
-- [ ] TikTok Content Posting API and app audit/authorization as required.
-- [ ] YouTube upload integration.
-- [ ] Instagram publishing integration.
-- [ ] Campaign-specific metadata and disclosures.
-- [ ] Per-platform upload status and retry/idempotency.
-
-**Exit:** publishing only works after explicit human approval, with an immutable audit event.
-
-## M7 — general video editor (later)
-
-- [ ] Upload and media bins.
+## M6 — general manual editor
+- [ ] Upload bins and multi-source projects.
 - [ ] Multi-track timeline UI.
-- [ ] Trim, split, reorder, transitions and keyframes.
-- [ ] Edit captions and voiceover.
-- [ ] Replace/add b-roll, music and SFX.
-- [ ] Versioned projects, autosave and undo/redo.
-- [ ] Presets for Shorts, Reels, TikTok and horizontal videos.
+- [ ] Trim, split, reorder, transition and keyframe controls.
+- [ ] Edit captions, title, CTA and voiceover.
+- [ ] Add/replace licensed b-roll, music and SFX.
+- [ ] Autosave, undo/redo and project revisions.
+- [ ] Export presets for Shorts, Reels, TikTok and horizontal video.
 
-**Exit:** uploaded non-live footage uses the same timeline and renderer as livestream clips.
+**Exit:** ordinary uploaded videos and stream-derived clips use the same renderer.
 
-## Pilot definition
-
-The first end-to-end pilot is intentionally narrow:
-1. One authorized creator and one platform feed.
-2. One monitor process at a time.
-3. A 9:16 output, initially 20–60 seconds unless campaign rules require otherwise.
-4. AI produces a structured edit plan.
-5. Renderer adds a clear hook, accurate captions, tasteful motion/transition treatment, optional narrator voiceover, licensed music/SFX and balanced audio.
-6. User approves or rejects the rendered version.
-7. No automatic publishing.
+## Not in scope
+- Automatic publishing to TikTok, Instagram, YouTube or any other destination.
+- Automatic raw-video extraction from arbitrary public stream URLs.
+- Twitch Editor role for Diego.
+- Unofficial download/scraping workarounds.
+- Making platform engagement/audience guarantees.
