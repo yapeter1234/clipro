@@ -60,12 +60,12 @@ def parse_privmsg(line: str, channel: str) -> TwitchChatMessage | None:
         return None
 
     parts = prefix.split(" ")
-    if len(parts) < 2 or parts[0] == "":
+    if len(parts) < 3 or parts[0] == "" or parts[1] != "PRIVMSG":
         return None
 
     user_prefix = parts[0].lstrip(":")
     username = user_prefix.split("!", 1)[0] or None
-    target = parts[1].lstrip("#").lower()
+    target = parts[2].lstrip("#").lower()
     if target != channel.lower().lstrip("#"):
         return None
 
