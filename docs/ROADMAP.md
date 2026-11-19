@@ -10,16 +10,20 @@
 
 **Exit:** schema validates sample projects; CI checks JSON and Python formatting/type tests.
 
-## M1 — authorized one-stream ingest
+## M1 — Diego Twitch live-VOD clip acquisition (no OBS)
 
-- [ ] Create Modal app and secret references.
-- [ ] Deploy authenticated ingest gateway/MediaMTX.
-- [ ] Validate creator-provided secondary RTMPS feed.
-- [ ] Segment input, maintain bounded rolling buffer and persist source timestamps.
-- [ ] Add start/stop, heartbeat, watchdog, reconnect, cleanup and spend quotas.
-- [ ] Build a media probe/health endpoint.
+- [x] Record the no-OBS Twitch VOD clip strategy and required scope.
+- [x] Add initial official Twitch Helix client for live status, VOD listing, VOD clip creation, polling, and clip download URL lookup.
+- [ ] Confirm Diego/campaign permission and add the user's Twitch account as a channel Editor, if accepted.
+- [ ] Register a Twitch Developer application and configure the OAuth callback.
+- [ ] Implement token validation, encrypted token storage and the `editor:manage:clips` scope flow.
+- [ ] Find the active stream VOD and map detected moments to VOD offsets.
+- [ ] Monitor approved chat/event signals and generate candidate timestamps.
+- [ ] Request VOD clips, poll creation, fetch temporary media URLs promptly and store source media in temporary workspace storage.
+- [ ] Add cleanup, retry, rate limit handling and cost quotas.
+- [ ] Run integration tests against an authorized test channel.
 
-**Exit:** one authorized test feed can run for the selected test duration, with reconnect and buffer recovery demonstrated. No undocumented platform media extraction.
+**Exit:** a single authorized active Twitch broadcast can produce a downloadable source clip without an OBS feed, then pass through the shared editor. If Editor authorization is unavailable, use only permitted creator/campaign-supplied source files.
 
 ## M2 — platform metadata/chat adapters
 
