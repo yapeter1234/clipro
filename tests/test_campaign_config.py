@@ -39,7 +39,7 @@ def test_diego_campaign_contains_all_mandatory_cta_and_hashtags():
 def test_diego_campaign_never_publishes_and_tracks_post_metrics():
     cfg = read_json("config/campaigns/diego-loveless-gta6.json")
     assert cfg["publishing_rules"]["clipro_publishing_enabled"] is False
-    assert cfg["publishing_rules"]["manual_user_publishing_only"] is True
+    assert cfg["publishing_rules"]["user_publishes_manually"] is True
     assert cfg["publishing_rules"]["likes_must_be_visible"] is True
     assert cfg["publishing_rules"]["min_post_live_days"] == 30
     assert cfg["publishing_rules"]["min_engagement_rate"] == 0.008
@@ -63,7 +63,7 @@ def test_general_campaign_template_is_not_locked_to_diego():
         "kick",
         "youtube",
     }
-    assert cfg["publishing_rules"]["automatic_publishing"] is False
+    assert cfg["publishing"]["automatic_publishing"] is False
 
 
 def test_streamer_brainrot_style_keeps_quality_guardrails():
