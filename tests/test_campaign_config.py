@@ -38,13 +38,13 @@ def test_diego_campaign_contains_all_mandatory_cta_and_hashtags():
 
 def test_diego_campaign_never_publishes_and_tracks_post_metrics():
     cfg = read_json("config/campaigns/diego-loveless-gta6.json")
-    assert cfg["publishing"]["clipro_publishing_enabled"] is False
-    assert cfg["publishing"]["manual_user_publishing_only"] is True
-    assert cfg["publishing"]["likes_must_be_visible"] is True
-    assert cfg["publishing"]["min_post_live_days"] == 30
-    assert cfg["publishing"]["min_engagement_rate"] == 0.008
-    assert cfg["publishing"]["min_tier1_audience_share"] == 0.4
-    assert cfg["publishing"]["tier1_countries"] == ["US", "GB", "CA", "AU"]
+    assert cfg["publishing_rules"]["clipro_publishing_enabled"] is False
+    assert cfg["publishing_rules"]["manual_user_publishing_only"] is True
+    assert cfg["publishing_rules"]["likes_must_be_visible"] is True
+    assert cfg["publishing_rules"]["min_post_live_days"] == 30
+    assert cfg["publishing_rules"]["min_engagement_rate"] == 0.008
+    assert cfg["publishing_rules"]["min_tier1_audience_share"] == 0.4
+    assert cfg["publishing_rules"]["tier1_countries"] == ["US", "GB", "CA", "AU"]
 
 
 def test_temporary_gta_window_is_seven_days_from_november_18():
@@ -63,7 +63,7 @@ def test_general_campaign_template_is_not_locked_to_diego():
         "kick",
         "youtube",
     }
-    assert cfg["publishing"]["automatic_publishing"] is False
+    assert cfg["publishing_rules"]["automatic_publishing"] is False
 
 
 def test_streamer_brainrot_style_keeps_quality_guardrails():
