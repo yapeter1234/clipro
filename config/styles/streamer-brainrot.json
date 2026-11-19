@@ -1,0 +1,53 @@
+{
+  "style_id": "streamer-brainrot",
+  "version": "1.0.0",
+  "intent": "High-energy streamer edit with clear story and strong retention; not gratuitous effects.",
+  "hook": {
+    "duration_max_ms": 2000,
+    "methods": [
+      "truthful_caption_hook",
+      "short_payoff_tease",
+      "original_narrator_bridge"
+    ]
+  },
+  "captions": {
+    "language": "en",
+    "word_timed": true,
+    "max_lines": 2,
+    "emphasis": "key_words_only",
+    "safe_zones": true
+  },
+  "motion": {
+    "allowed": [
+      "punch_in",
+      "subtle_shake",
+      "zoom",
+      "whip_pan",
+      "glitch",
+      "wipe",
+      "kinetic_type"
+    ],
+    "intensity": "moment_driven"
+  },
+  "audio": {
+    "voiceover_optional": true,
+    "voiceover_original_only": true,
+    "music_licensed_only": true,
+    "sfx_licensed_only": true,
+    "duck_music_under_speech": true
+  },
+  "layout": {
+    "target_aspect_ratio": "9:16",
+    "creator_and_gameplay_visible": true
+  },
+  "ending": {
+    "cta_from_campaign_profile": true
+  },
+  "guardrails": [
+    "preserve original meaning",
+    "do not fabricate quotes or context",
+    "do not humiliate creator",
+    "no effects that obscure gameplay",
+    "no unlicensed music or sound effects"
+  ]
+}
