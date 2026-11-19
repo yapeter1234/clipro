@@ -1,39 +1,36 @@
 # Modal deployment
 
-This folder will contain the Modal app definitions. Keep long-running ingest separate from short-lived analysis/render functions.
+Modal runs short-lived, autoscaling media workers. The first worker is a CPU-only media probe that downloads one already-authorized private R2 object, runs ffprobe, computes SHA-256 and stores a thumbnail. It does not inspect platform URLs or download a stream.
 
-## Planned Modal resources
+## Worker
 
-- `clipro-api`: web endpoint for the FastAPI control plane.
-- `clipro-ingest`: supervised live ingest process/MediaMTX, using authenticated ingress.
-- `clipro-analyze`: CPU-first window analysis.
-- `clipro-asr`: faster-whisper transcription worker.
-- `clipro-vision`: optional GPU worker invoked only for ranked candidates.
-- `clipro-tts`: Kokoro narration worker.
-- `clipro-render`: Remotion/FFmpeg rendering worker.
-- `clipro-cleanup`: TTL and temporary media cleanup.
+- App: \`clipro-workers\`
+- Function: \`probe_asset\`
+- Image: Debian Slim + FFmpeg + Python 3.12
+- Resources: 2 CPU, 4 GiB RAM, 50 GiB ephemeral disk, 30-minute timeout, max 2 containers
+- Retries: one retry for transient infrastructure failures
 
-## Required secrets (names only)
+The function uses Modal Secret \`clipro-worker-secrets\`, containing server-side \`DATABASE_URL\`, \`R2_ACCOUNT_ID\`, \`R2_ACCESS_KEY_ID\`, \`R2_SECRET_ACCESS_KEY\` and \`R2_BUCKET_NAME\`. Never put those values in GitHub or browser environment variables.
 
-Do not commit secret values:
-- `CLIPRO_APP_SECRET`
-- `TWITCH_CLIENT_ID`
-- `TWITCH_CLIENT_SECRET`
-- `KICK_CLIENT_ID`
-- `KICK_CLIENT_SECRET`
-- `YOUTUBE_API_KEY` (if used)
-- `DATABASE_URL` (if using managed Postgres)
-- `OBJECT_STORAGE_* ` (only if configured)
+Deploy from the repository root after creating the secret:
 
-Only create platform secrets after the corresponding adapter is implemented and the user authorizes that platform.
+    modal deploy infra/modal/clipro_workers.py
 
-## Deployment gates
+The API dispatch code is a separate step and requires Modal API authentication in the API environment. Do not claim worker dispatch is active until the app is deployed and the API's Modal credentials are configured.
 
-1. Prove RTMPS ingress works from a creator-owned test encoder.
-2. Prove a bounded buffer can recover after a worker restart.
-3. Verify TLS and per-session ingest-key revocation.
-4. Verify Modal egress, GPU and Sandbox costs on a short test.
-5. Verify cleanup removes expired source material.
-6. Add observability and hard spending quotas before a long monitoring session.
+## Required Modal resources
 
-Modal Sandbox lifetime is bounded. Never rely on one process running indefinitely; checkpoint monitor state, use a watchdog and restart gracefully.
+- \`clipro-workers\`: media probe, followed later by ASR, visual analysis, TTS and rendering.
+- Keep probe, ASR, GPU vision and render functions separate so we only pay for the resources each stage needs.
+- R2 remains durable media storage. Use Modal ephemeral disk only as bounded scratch space for one job.
+
+## Future workers
+
+- \`clipro-analyze\`: CPU-first chunking, VAD, PySceneDetect and transcription orchestration.
+- \`clipro-asr\`: faster-whisper for word timestamps.
+- \`clipro-vision\`: optional GPU reasoning only on selected windows.
+- \`clipro-tts\`: original narration with an appropriately licensed voice.
+- \`clipro-render\`: FFmpeg and, if commercial license eligibility is confirmed, Remotion.
+- \`clipro-cleanup\`: TTL and expired multipart cleanup.
+
+Never run always-on stream monitoring in the manual-capture MVP.
