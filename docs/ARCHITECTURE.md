@@ -1,221 +1,152 @@
-# Architecture
+# Clipro architecture
 
-## 1. Goals
+## Product scope
 
-Clipro is a browser-first, cloud-hosted production system for turning authorized live-stream footage and uploaded source videos into polished short-form edits.
+Clipro is a multi-streamer, multi-platform AI clipping and short-form video editing studio. It is not hard-coded to Diego or to one campaign.
 
-The live monitor and the future manual editor must share one timeline model and one render engine. They differ only in how source media enters the system and how edit decisions are initiated.
+A job can start from:
+- a native clip captured from a live stream;
+- a native clip captured from a past broadcast/VOD;
+- a creator/campaign-authorized uploaded video file;
+- a future creator-authorized continuous media feed.
 
-### MVP constraints
+The first pilot is DiegoLoveless's Twitch GTA campaign, using viewer-created clips downloaded manually. The same editing engine, timeline schema and browser review flow serve all other creators and campaigns.
 
-- One monitored creator/channel at a time.
-- Twitch, Kick and YouTube adapters are separate modules.
-- All video processing uses an authorized source feed, creator-provided recording, or platform capability permitted for the requested operation.
-- Platform chat and metadata are signals, not substitutes for access to the actual video.
-- AI may find, edit and render candidates automatically.
-- Publication is disabled until a human explicitly approves a candidate.
-- Rendered videos are accompanied by a structured edit decision list (EDL)/timeline project that can be edited again.
+## Core principles
 
-## 2. System boundaries
+- Platform-native capture and editing are separate.
+- Public stream URLs/chat access are not raw media downloads.
+- Use official viewer capture tools or creator-authorized media files.
+- Never bypass access controls or use undocumented playback extraction.
+- A user must explicitly supply/authorize the source file before processing.
+- Clipro never publishes in the MVP. Rendered clips are downloaded and posted by the user.
+- Source profiles, campaign rules, and visual style profiles are independent and configurable.
+- Live clips and archived-video clips use the same editor/render pipeline.
 
-### Control plane
-
-The FastAPI service owns:
-- user and workspace authentication;
-- streamer/channel configuration;
-- monitor lifecycle and quotas;
-- provider OAuth callback handling;
-- campaign and output profiles;
-- candidate/asset/project metadata;
-- approval/rejection state transitions;
-- job creation, status and audit events.
-
-The control plane must not process long-running media inside an HTTP request.
-
-### Data plane
-
-Modal workers own:
-- live ingest sessions;
-- rolling media buffers;
-- signal extraction;
-- transcription and voice activity detection;
-- highlight candidate generation;
-- editorial planning;
-- voiceover and caption generation;
-- render jobs and output validation.
-
-Use separate short-lived Functions for bounded jobs and a supervised Sandbox or long-lived worker for the ingest process. A Modal Sandbox is not a forever-running service: workers must checkpoint state and restart before the configured lifetime limit.
+## System boundaries
 
 ### Browser app
 
-The Next.js app provides:
-- streamer setup and source permissions;
-- monitoring state and event timeline;
-- candidate list with scores and reasons;
-- rendered preview;
-- project/timeline editor in a later phase;
-- approve, reject, regenerate and download controls;
-- usage and estimated cost display.
+- Create/select streamer profiles.
+- Create/select campaign profiles.
+- Choose platform (Twitch/Kick/YouTube).
+- Choose source type (live stream/past broadcast/uploaded video).
+- Display platform-specific clip/download instructions.
+- Upload source files using a secure browser upload flow.
+- Show upload progress, media metadata, clip range selector and analysis job status.
+- Preview automatically edited results.
+- Approve/reject/regenerate and download MP4, captions and timeline JSON.
+- Later: multi-track manual editing.
+- After user posts manually, record URL and analytics evidence.
+- No publishing integration in the MVP.
 
-## 3. Media access and platform adapters
+### Control plane
 
-Define provider interfaces; do not make the renderer depend on any platform's URL format.
+FastAPI owns authentication, workspaces, streamer/campaign/style profiles, source metadata, uploads, job lifecycle, rendering status, approvals and post-publish metrics.
 
-Each adapter can provide:
-- channel identity and live status;
-- stream metadata and category;
-- chat/events, where official APIs permit;
-- native clip creation, where officially supported;
-- OAuth scopes and permission checks;
-- webhook validation and reconnect behavior.
+### Data plane
 
-The MediaSource interface is separate. Supported source modes should be explicit:
+Modal workers own media probing, proxy generation, ASR/VAD, highlight detection, editorial planning, TTS, motion graphics and rendering.
 
-1. `twitch_vod_clip`: a channel Editor (or broadcaster) uses Twitch's documented Create Clip From VOD endpoint to create a clip from an archive VOD or the VOD currently being generated by a live broadcast. Download media using the documented Get Clips Download endpoint and the required editor authorization.
-2. `creator_relay`: creator-owned encoder sends a secondary RTMPS/SRT feed to an authenticated Clipro ingest endpoint. This is not required for the Diego pilot.
-3. `authorized_file`: creator/campaign provides an authorized recording or uploaded media file.
-4. `platform_native_clip`: a provider's official API/UI produces a clip; source download/edit rights must be independently verified.
-5. `unsupported`: no raw video processing until a permitted source is available.
+For long VOD files, use a source-range selector and chunked analysis; never load the entire multi-hour video into RAM. For native clips, process the complete short file.
 
-Never infer permission to download, record, edit, or monetize a public stream from visibility, chat access, or the existence of a share URL.
+## Source abstraction
 
-### Diego no-OBS pilot
+Define a source object with:
+- source_id;
+- platform;
+- creator/channel;
+- source_kind: live_stream, past_broadcast, uploaded_video;
+- acquisition_mode;
+- source_url/clip_url (reference only);
+- file asset ID (required to edit);
+- source duration, dimensions, frame rate and audio streams;
+- campaign/style profile IDs;
+- authorization evidence/notes;
+- checksum and retention policy.
 
-Use the Twitch Helix Create Clip From VOD endpoint for candidate offsets in the VOD being generated by the active stream. Poll Get Clips for clip availability and retrieve its short-lived media URL through Get Clips Download. The user's Twitch account must be a channel Editor and authorize the app with `editor:manage:clips` (or the broadcaster may authorize with `channel:manage:clips`). The media URL is temporary and must be fetched promptly and never logged.
+Acquisition modes:
+1. `viewer_native_clip_manual_download`: user creates and downloads a native Twitch or Kick clip and uploads it.
+2. `authorized_source_file`: creator/campaign supplies a video or excerpt.
+3. `youtube_clip_reference`: stores a YouTube Clip URL only; no raw media processing until an authorized source file is uploaded.
+4. `creator_relay`: future optional RTMPS/SRT creator-owned feed.
+5. `editor_api`: optional future Twitch Editor integration for channels that explicitly grant it; disabled for Diego.
+6. `unsupported`: no source file or permitted acquisition route.
 
-This enables chat/event-guided live clipping without a creator-side OBS feed, but it is not a continuous raw video feed. The initial detection method should clearly represent its limitations and use creator/campaign-authorized source material.
+The renderer accepts files/assets, not arbitrary platform URLs. Arbitrary URL fetching is disabled.
 
-### Optional creator-relay ingest
+## Platform source handling
 
-For future creators who can provide a secondary output, MediaMTX may receive an authenticated encrypted RTMPS/SRT feed; FFmpeg segments it and maintains a bounded rolling buffer. Validate public ingress, TLS termination, request authentication, per-session stream keys, egress and failure recovery before production. Do not expose an unauthenticated RTMP endpoint.
+### Twitch
+Logged-in viewers can create clips from live streams and VODs when channel clip settings permit and the viewer is not restricted. Clips are 5–60 seconds. A viewer can download clips they created from Clips Manager. Diego's job uses this manual workflow. Editor-only Create Clip From VOD/Get Clips Download endpoints are not invoked.
 
-## 4. Signal and highlight pipeline
+### Kick
+Logged-in viewers can create clips from live streams and VODs when enabled. Clips are 10–180 seconds; viewers can download clips they created. Full VOD downloads are available to the channel owner only, so the app must not download another creator's VOD.
 
-1. Ingest video/audio with source timestamps and monotonic receive timestamps.
-2. Collect platform chat/events separately, retaining provider event IDs and timestamps.
-3. Extract low-cost signals:
-   - audio RMS/peaks and onset changes;
-   - speech/VAD;
-   - rolling ASR transcript;
-   - chat velocity and unique-user count;
-   - selected low-rate video frames;
-   - scene-change/motion signals.
-4. Generate candidate windows with configurable pre-roll and post-roll.
-5. Deduplicate overlapping windows and attach evidence.
-6. Score candidates with a deterministic baseline, then optionally use a vision-language model on a small set of selected frames.
-7. Preserve both source timestamps and offsets; account for ingest delay and source clock drift.
+### YouTube
+YouTube Clips are shareable 5–60-second excerpts, not an MP4 download endpoint for the Clipro renderer. Live clipping requires eligible DVR/broadcast conditions, and the clip may not be playable until the archive is processed. Custom editing requires an authorized video file from the creator/campaign.
 
-A candidate record must explain why it exists (for example: chat burst + laughter + transcript phrase), not only contain a score. Chat bursts are not sufficient on their own; raids, giveaways, ads, bots and spam must be discounted.
+### Future direct feeds
+A creator may optionally provide an authorized second output into secure RTMPS/SRT ingress (MediaMTX). This is not required by the current user or Diego campaign.
 
-## 5. Editorial planning
+## AI editing pipeline
 
-Do not render directly from model-generated prose. The editorial planner returns validated structured data against the timeline schema.
+1. Probe media, inspect source game/category metadata if present.
+2. For full uploaded VODs, scan in chunks and extract candidate ranges using audio, transcript, chat if legitimately available, and low-rate visual signals.
+3. For short native clips, analyze the complete clip.
+4. Apply campaign gate: platform, game/topic, creator visibility, source type and prohibited content.
+5. Analyze the narrative and create a structured edit plan.
+6. Generate accurate captions, optional original narrator script/TTS, licensed music/SFX, hooks, CTA, transitions, motion and reframe.
+7. Render with the reusable timeline engine.
+8. Run technical and campaign QA.
+9. Present the finished result for manual approval/download.
 
-The plan may contain:
-- a clear context-preserving hook;
-- one or more source segments;
-- trims and playback speed changes;
-- layout and crop tracking;
-- caption tracks with word/phrase timing;
-- optional original narrator script and TTS audio;
-- translated subtitles and optionally translated narration;
-- b-roll/illustrative inserts, only from licensed or user-provided media;
-- transitions and motion graphics;
-- overlays, titles, progress bars and CTAs;
-- background music and sound effects;
-- audio ducking, fades and loudness targets;
-- export profiles and a compliance checklist.
+AI must never generate fake quotes or alter chronology to misrepresent what happened. For Diego, never make the creator look bad.
 
-The edit must not change the meaning of the speaker's statement. Do not fabricate quotes, reactions, context, or factual claims. Narration is clearly a separate narrator track; never clone a streamer's voice without explicit consent and applicable rights.
+## Campaign profiles
 
-### Quality policy
+Campaign profiles are data, not application constants. A profile can define:
+- creator/channel and allowed source platform(s);
+- source types and date windows;
+- allowed game/franchise or topic;
+- clip must-show rules;
+- required CTA;
+- caption language, hashtags and disclosures;
+- content style and restrictions;
+- output duration/aspect ratio;
+- likes-visible, post lifespan and post-publish analytics targets;
+- reference videos/assets;
+- duplicate/reuse limits.
 
-- No transition/effect merely for decoration.
-- A hook may use a short payoff preview only if the chronology remains honest and does not spoil the moment unintentionally.
-- Captions must be checked against ASR and be readable in safe areas.
-- Narration must not cover important original dialogue.
-- Music/SFX must be licensed or user-provided and mixed below dialogue.
-- Keep a natural ending/payoff; avoid abrupt cuts.
-- Render output must pass audio/video probe, duration, frame, loudness and subtitle validation.
-- If the model is uncertain, produce a review warning rather than invent content.
+The Diego profile is one instance. Other Twitch/Kick/YouTube creators get their own profiles and cannot inherit Diego-specific rules.
 
-## 6. Rendering engine
+## Timeline and rendering
 
-Use a renderer interface that accepts a validated timeline project and returns:
-- MP4 (H.264 video/AAC audio baseline);
-- poster/thumbnail;
-- caption sidecar (SRT/VTT);
-- timeline JSON/EDL;
-- render metadata and QA report.
+Use the versioned schema in `packages/timeline/schema.json`. Remotion creates reusable compositions (animated captions, overlays, motion graphics, transitions, layouts and end cards); FFmpeg handles probing, trimming, composition inputs, audio mixing and final encoding.
 
-Recommended division:
-- Remotion: reusable React motion graphics, captions, title cards, kinetic text, layout and transitions.
-- FFmpeg: ingest segmentation, cuts, crop/scale, audio mixing, encode, probe and final muxing.
-- Pillow/SVG/Canvas may generate static graphics when needed.
-- TTS adapter: Kokoro initially; provider-neutral interface for future voices.
-- ASR adapter: faster-whisper initially; word timing retained in the timeline.
+The same timeline renderer serves native clips, uploaded VOD excerpts and future manually arranged video projects.
 
-Do not make the initial MVP depend on a paid model API. A provider-agnostic model interface permits adding a paid model later, with budget and privacy controls.
+## Post-publish metrics (user-entered initially)
 
-## 7. Unified project timeline
+Clipro does not publish. It can track a manually entered post URL, date, likes-visible confirmation, 30-day minimum-live reminder, views, likes, comments, shares, engagement rate and Tier 1 audience share. Analytics can only be marked verified when the user supplies platform analytics evidence or a supported official analytics integration exists.
 
-The timeline is source-agnostic. A project may originate from a live buffer, an uploaded file, an authorized platform-native clip or a future multi-file editor session.
+## Storage and security
 
-A track contains ordered, time-based clips. Clip items reference source assets and describe source in/out, timeline start, speed, transforms, effects, transitions and audio gain. Overlay/caption/voiceover/music/SFX are tracks too.
+- Media stored outside relational DB, referenced by asset ID/checksum.
+- Uploads use short-lived signed URLs, file limits, type probing and workspace access checks.
+- Delete/expire source and rejected output files by configurable TTL.
+- Treat transcripts, chat, titles and comments as untrusted data.
+- Model-generated timelines validated against JSON Schema and an effect allowlist.
+- Never interpolate untrusted text into shell commands.
+- Creator/streamer OAuth tokens remain server-side in secrets.
+- No stream key or creator password is requested.
+- Human approval is required for final acceptance; publishing functionality is absent.
 
-The schema in `packages/timeline/schema.json` is the contract. Renderer and UI must validate against the same version. Do not place binary media in the JSON; reference asset IDs and signed/short-lived URLs.
+## Cost strategy
 
-## 8. Data and storage
-
-MVP:
-- PostgreSQL is preferred for shared state if a managed free tier is available; SQLite may be used only for a single-worker development prototype.
-- Modal Volume for transient rolling segments and worker cache, not as a multi-writer database.
-- S3-compatible object storage adapter for durable rendered artifacts; local/Modal storage can be used during a prototype.
-- TTL cleanup for source buffers and rejected candidates.
-- Store media consent/authorization evidence and its scope, not only a boolean checkbox.
-
-Avoid writing large video blobs into the relational database. Use checksums, content types, byte sizes, retention metadata and owner IDs.
-
-## 9. Security and reliability
-
-- All API endpoints require workspace auth except verified provider webhooks and narrowly scoped ingest endpoints.
-- Validate Twitch EventSub signatures, Kick webhook signatures and YouTube API credentials according to the official docs.
-- Verify webhook timestamps and replay protections.
-- Encrypt OAuth tokens and ingest credentials at rest; keep them in a secret manager.
-- Use per-workspace RBAC, rate limits, resource quotas and job idempotency.
-- Sanitize FFmpeg arguments; never interpolate user text into shell commands.
-- Restrict URLs to prevent SSRF and block private/link-local addresses for any URL fetch feature.
-- Keep an audit trail for monitor start/stop, source authorization, render requests and human approvals.
-- Human approval is a hard server-side publish gate.
-
-## 10. Cost and compute strategy
-
-- One monitor at a time for MVP.
-- CPU first for FFmpeg stream copy/segmentation, VAD, chat aggregation and coarse signal extraction.
-- Transcribe only rolling audio windows; avoid repeated full-stream ASR.
-- Use a small low-rate frame sampler for visual detection.
-- Invoke GPU/VLM only for top-ranked candidates.
-- Limit rolling buffer retention and candidate count.
-- Expose minutes monitored, CPU/GPU seconds, storage and egress estimates.
-- Configure hard quotas and shutdown timers.
-- Modal credit is finite; a free allowance is for prototyping, not unlimited 24/7 monitoring.
-
-## 11. Future non-live video editor
-
-The editor is not a separate rendering stack. Uploaded media becomes a SourceAsset and the user creates the same timeline project.
-
-Future operations:
-- upload and proxy generation;
-- multi-file bins;
-- trim/split/ripple delete/reorder;
-- multi-track video/audio;
-- captions and keyframes;
-- overlay/graphic library;
-- transitions;
-- voiceover recording/TTS;
-- audio mixing;
-- reusable templates;
-- undo/redo and autosave;
-- export presets.
-
-The MVP must preserve stable asset IDs, source timebases, timeline timebases and project schema versioning so these features can be added without a rewrite.
+- Short native clips first (Twitch/Kick), then full VOD analysis.
+- For long videos, use chunked proxy analysis and low-resolution frame sampling.
+- CPU for media probe, initial segmentation and simple transforms; GPU only for selected AI tasks.
+- Use local/open-weight ASR and TTS when quality is acceptable.
+- Display estimated Modal compute, storage and egress.
+- No always-on monitoring by default in manual-capture mode.
