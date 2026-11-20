@@ -29,9 +29,11 @@ async def get_pool() -> asyncpg.Pool:
     async with _pool_lock:
         if _pool is not None:
             return _pool
+        settings = get_settings()
         try:
             _pool = await asyncpg.create_pool(
                 dsn=_database_dsn(),
+                ssl="require" if settings.database_ssl else None,
                 min_size=1,
                 max_size=8,
                 command_timeout=30,
@@ -74,7 +76,7 @@ async def require_workspace_membership(
     if write and membership["role"] not in WRITE_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your workspace role does not permit uploading media.",
+            detail="Your workspace role does not permit this action.",
         )
     return membership
 

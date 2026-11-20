@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from .database import close_pool
 from .ingestion import UploadPreflightRequest, UploadPreflightResponse, validate_upload_preflight
+from .routers.jobs import router as jobs_router
 from .routers.uploads import router as uploads_router
 from .r2_storage import StorageNotConfigured
 from .settings import get_settings
@@ -23,7 +24,7 @@ allowed_origins = [origin.strip() for origin in settings.clipro_web_origins.spli
 
 app = FastAPI(
     title="Clipro API",
-    version="0.4.0",
+    version="0.5.0",
     description="Control plane for Clipro's source intake and editing jobs.",
     lifespan=lifespan,
 )
@@ -35,6 +36,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 app.include_router(uploads_router)
+app.include_router(jobs_router)
 
 
 @app.exception_handler(StorageNotConfigured)

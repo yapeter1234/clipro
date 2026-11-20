@@ -1,6 +1,7 @@
 """Authenticated Uppy 6 / Cloudflare R2 multipart upload endpoints."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 from uuid import UUID, uuid4
@@ -12,9 +13,11 @@ from starlette.concurrency import run_in_threadpool
 from ..auth import CurrentUser, get_current_user
 from ..database import fetch_upload_session, get_pool, require_workspace_membership
 from ..ingestion import UploadPreflightRequest, validate_upload_preflight
+from ..modal_dispatch import spawn_media_probe
 from ..r2_storage import abort_multipart_upload, build_storage_key, create_multipart_upload, head_object, sign_multipart_request
 from ..settings import get_settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/uploads", tags=["uploads"])
 
 
@@ -76,6 +79,19 @@ async def _authorize_upload(upload_id: str, key: str, user: CurrentUser, *, writ
     if session["expires_at"] < datetime.now(timezone.utc) and session["status"] == "uploading":
         raise HTTPException(status_code=410, detail="Upload session expired.")
     return session
+
+
+async def _job_for_asset(asset_id: UUID) -> dict | None:
+    pool = await get_pool()
+    async with pool.acquire() as connection:
+        row = await connection.fetchrow(
+            """SELECT job_id, status, progress, dispatch_error, error_message
+               FROM public.processing_jobs
+               WHERE asset_id=$1 AND job_type='media_probe'
+               ORDER BY created_at DESC LIMIT 1""",
+            asset_id,
+        )
+    return dict(row) if row else None
 
 
 @router.post("", response_model=UploadCreateResponse)
@@ -166,10 +182,20 @@ async def sign_s3_request(request: S3SignRequest, user: CurrentUser = Depends(ge
 
 @router.post("/finalize")
 async def finalize_upload(request: UploadPartsRequest, user: CurrentUser = Depends(get_current_user)):
-    """Verify the completed object in R2 before marking its Clipro asset uploaded."""
+    """Verify the completed R2 object and enqueue its media-probe job."""
     session = await _authorize_upload(request.uploadId, request.key, user)
     if session["status"] == "completed":
+        existing_job = await _job_for_asset(session["asset_id"])
+        if existing_job:
+            return {
+                "asset_id": str(session["asset_id"]),
+                "status": "uploaded",
+                "job_id": str(existing_job["job_id"]),
+                "processing_status": existing_job["status"],
+                "dispatch_error": existing_job["dispatch_error"],
+            }
         return {"asset_id": str(session["asset_id"]), "status": "uploaded"}
+
     if session["status"] != "uploading":
         raise HTTPException(status_code=409, detail="Upload is not active.")
 
@@ -181,6 +207,7 @@ async def finalize_upload(request: UploadPartsRequest, user: CurrentUser = Depen
     if metadata.get("clipro-asset-id") != str(session["asset_id"]):
         raise HTTPException(status_code=400, detail="Stored object metadata does not match the expected asset.")
 
+    processing_job_id = uuid4()
     pool = await get_pool()
     async with pool.acquire() as connection:
         async with connection.transaction():
@@ -194,7 +221,64 @@ async def finalize_upload(request: UploadPartsRequest, user: CurrentUser = Depen
                 "UPDATE public.media_assets SET state='uploaded', completed_at=now() WHERE asset_id=$1",
                 session["asset_id"],
             )
-    return {"asset_id": str(session["asset_id"]), "status": "uploaded", "size_bytes": total_bytes}
+            await connection.execute(
+                """INSERT INTO public.processing_jobs (
+                    job_id, workspace_id, asset_id, job_type, status, progress
+                ) VALUES ($1,$2,$3,'media_probe','queued',0)""",
+                processing_job_id,
+                session["workspace_id"],
+                session["asset_id"],
+            )
+
+    dispatch_error = None
+    modal_call_id = None
+    settings = get_settings()
+    if settings.clipro_modal_dispatch_enabled:
+        try:
+            modal_call_id = await run_in_threadpool(
+                spawn_media_probe,
+                job_id=str(processing_job_id),
+                asset_id=str(session["asset_id"]),
+                workspace_id=str(session["workspace_id"]),
+            )
+        except Exception as exc:
+            logger.exception("Unable to dispatch media probe for asset %s", session["asset_id"])
+            dispatch_error = type(exc).__name__
+    else:
+        dispatch_error = "Modal dispatch is disabled; deploy the worker and enable dispatch to process this asset."
+
+    async with pool.acquire() as connection:
+        async with connection.transaction():
+            if modal_call_id:
+                await connection.execute(
+                    """UPDATE public.processing_jobs
+                       SET modal_call_id=$2, dispatch_error=NULL, updated_at=now()
+                       WHERE job_id=$1""",
+                    processing_job_id,
+                    modal_call_id,
+                )
+                await connection.execute(
+                    "UPDATE public.media_assets SET state='probing' WHERE asset_id=$1",
+                    session["asset_id"],
+                )
+            elif dispatch_error:
+                await connection.execute(
+                    """UPDATE public.processing_jobs
+                       SET dispatch_error=$2, updated_at=now()
+                       WHERE job_id=$1""",
+                    processing_job_id,
+                    dispatch_error[:500],
+                )
+
+    return {
+        "asset_id": str(session["asset_id"]),
+        "status": "uploaded",
+        "size_bytes": total_bytes,
+        "job_id": str(processing_job_id),
+        "processing_status": "queued",
+        "dispatch_started": modal_call_id is not None,
+        "dispatch_error": dispatch_error,
+    }
 
 
 @router.post("/abort")
@@ -224,19 +308,37 @@ async def get_upload_status(asset_id: UUID, user: CurrentUser = Depends(get_curr
     async with pool.acquire() as connection:
         row = await connection.fetchrow(
             """SELECT asset_id, workspace_id, original_filename, declared_mime_type,
-                      file_size_bytes, state, created_at, completed_at
+                      file_size_bytes, state, created_at, completed_at, thumbnail_key,
+                      duration_ms, width, height, frame_rate_num, frame_rate_den,
+                      video_codec, audio_codec
                FROM public.media_assets WHERE asset_id=$1""",
             asset_id,
         )
     if row is None:
         raise HTTPException(status_code=404, detail="Asset was not found.")
     await require_workspace_membership(row["workspace_id"], user.user_id, write=False)
+    job = await _job_for_asset(asset_id)
     return {
         "asset_id": str(row["asset_id"]),
         "filename": row["original_filename"],
         "content_type": row["declared_mime_type"],
         "size_bytes": row["file_size_bytes"],
         "status": row["state"],
+        "duration_ms": row["duration_ms"],
+        "width": row["width"],
+        "height": row["height"],
+        "frame_rate_num": row["frame_rate_num"],
+        "frame_rate_den": row["frame_rate_den"],
+        "video_codec": row["video_codec"],
+        "audio_codec": row["audio_codec"],
+        "thumbnail_key": row["thumbnail_key"],
+        "job": {
+            "job_id": str(job["job_id"]),
+            "status": job["status"],
+            "dispatch_error": job["dispatch_error"],
+            "error_message": job["error_message"],
+            "progress": job["progress"],
+        } if job else None,
         "created_at": row["created_at"],
         "completed_at": row["completed_at"],
     }
