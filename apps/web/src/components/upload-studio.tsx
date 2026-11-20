@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Uppy from "@uppy/core";
 import AwsS3, { type AwsBody } from "@uppy/aws-s3";
-import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import "@uppy/core/css/style.min.css";
 
 type Platform = "twitch" | "kick" | "youtube" | "upload";
@@ -23,14 +22,12 @@ type UploadSession = { upload_id: string; key: string; asset_id: string };
 type ProcessingJob = { job_id: string; asset_id: string; status: string; progress: number; dispatch_error?: string | null; error_message?: string | null; result?: Record<string, unknown> | null };
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 * 1024;
-const API_BASE = (process.env.NEXT_PUBLIC_CLIPRO_API_URL ?? "").replace(/\/$/, "");
-
-async function apiRequest<T>(path: string, token: string, body: unknown): Promise<T> {
-  if (!API_BASE) throw new Error("NEXT_PUBLIC_CLIPRO_API_URL is not configured.");
-  const response = await fetch(API_BASE + path, {
-    method: "POST",
-    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+async function apiRequest<T>(path: string, body?: unknown, method: "GET" | "POST" = "POST"): Promise<T> {
+  const response = await fetch("/api/clipro" + path, {
+    method,
+    cache: "no-store",
+    headers: body === undefined ? {} : { "Content-Type": "application/json" },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) {
     let detail = "The Clipro API request failed.";
@@ -38,16 +35,10 @@ async function apiRequest<T>(path: string, token: string, body: unknown): Promis
       const data = await response.json();
       detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail ?? data);
     } catch { /* Keep the generic error. */ }
+    if (response.status === 401) detail = "Your private session expired. Sign in again and retry.";
     throw new Error(detail);
   }
   return response.json() as Promise<T>;
-}
-
-async function getAccessToken() {
-  const result = await createSupabaseClient().auth.getSession();
-  const token = result.data.session?.access_token;
-  if (result.error || !token) throw new Error("Your sign-in session expired. Sign in again and retry.");
-  return token;
 }
 
 function acquisitionMode(meta: SourceMetadata) {
@@ -100,8 +91,7 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
       getChunkSize: () => 32 * 1024 * 1024,
       limit: 1,
       signRequest: async request => {
-        const token = await getAccessToken();
-        return apiRequest<{ url: string }>("/api/v1/uploads/sign-request", token, request);
+        return apiRequest<{ url: string }>("/api/v1/uploads/sign-request", request);
       },
     });
     return instance;
@@ -161,7 +151,6 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
   }
 
   async function finalize(session: UploadSession) {
-    const token = await getAccessToken();
     const result = await apiRequest<{
       asset_id: string;
       status: string;
@@ -169,7 +158,7 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
       processing_status?: string;
       dispatch_started?: boolean;
       dispatch_error?: string | null;
-    }>("/api/v1/uploads/finalize", token, {
+    }>("/api/v1/uploads/finalize", {
       uploadId: session.upload_id,
       key: session.key,
     });
@@ -199,12 +188,7 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
   async function refreshProcessingStatus() {
     if (!processingJob) return;
     try {
-      const token = await getAccessToken();
-      const response = await fetch(API_BASE + "/api/v1/jobs/" + processingJob.job_id, {
-        headers: { Authorization: "Bearer " + token },
-      });
-      if (!response.ok) throw new Error("Could not refresh processing status.");
-      const job = await response.json() as ProcessingJob;
+      const job = await apiRequest<ProcessingJob>("/api/v1/jobs/" + processingJob.job_id, undefined, "GET");
       setProcessingJob(job);
       setStatusMessage(
         job.status === "succeeded"
@@ -224,7 +208,6 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
     try {
       const job = await apiRequest<ProcessingJob>(
         "/api/v1/jobs/" + processingJob.job_id + "/dispatch",
-        await getAccessToken(),
         {},
       );
       setProcessingJob(job);
@@ -248,9 +231,8 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
       }
 
       if (!sessionRef.current) {
-        const token = await getAccessToken();
         const meta = metadataRef.current;
-        const session = await apiRequest<UploadSession>("/api/v1/uploads", token, {
+        const session = await apiRequest<UploadSession>("/api/v1/uploads", {
           workspace_id: workspaceId,
           original_filename: file.name,
           content_type: file.type || "application/octet-stream",
