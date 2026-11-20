@@ -1,89 +1,79 @@
 # Roadmap and acceptance criteria
 
-## M0 — contracts and product structure
+## M0 — source, campaign and timeline contracts
 - [x] Repository scaffold, timeline schema and campaign/style architecture.
 - [x] Define manual source acquisition boundaries.
 - [x] Add source policy for Twitch/Kick/YouTube live and past broadcasts.
 - [x] Add tests for platform source constraints.
-- [ ] Add generic streamer/campaign/style profile CRUD.
-- [ ] Add CI coverage for all API/worker modules and config JSON.
-- [x] Add ffprobe helper tests and media probe worker.\n- [ ] Add end-to-end test against real Cloudflare R2/Supabase/Modal resources.
+- [x] Add ffprobe helper tests and media probe worker.
+- [ ] Add end-to-end test against real Cloudflare R2, Postgres and Modal resources.
 
-**Exit:** a user can define a creator/campaign profile without changing code; source policies correctly describe live vs past video for each platform.
+**Exit:** supported source files can be safely ingested and described independently of any creator/campaign.
 
-## M1 — browser source intake and media validation
-- [x] Add backend upload preflight contract and endpoint for source method, rights confirmation, file type and size.
-- [x] Add Supabase magic-link sign-in and workspace membership schema/RLS migration.
-- [x] Add Next.js source metadata form and Clipro-styled upload dashboard.
-- [x] Add Uppy 6 multipart browser upload integration using server-signed R2 requests.
-- [x] Add authenticated R2 multipart session/sign/finalize/abort endpoints and durable asset records.
-- [x] Add Modal ffprobe worker, checksum, thumbnail generation and processing-job records.
-- [x] Add CI for Python API/worker tests and Next.js typecheck/production build.
-- [ ] Configure and verify the migration, R2 bucket/CORS and Modal worker against the user's real cloud accounts.
-- [ ] Add a source-range selector for long authorized VOD files.
-- [ ] Add asset preview/download signed URLs.
-- [ ] Add expired multipart-upload cleanup and retention jobs.
+## M1 — private single-operator foundation (refactor required)
+- [x] Browser upload dashboard and Uppy 6 multipart upload integration.
+- [x] R2 multipart orchestration and server-side object verification.
+- [x] Durable asset/job records and Modal media-probe worker.
+- [ ] Remove Supabase Auth, magic-link sign-in, user IDs, workspace tables/membership joins and multi-user RLS assumptions.
+- [ ] Add a private access gate (prefer Cloudflare Access allowlist) for both dashboard and API; verify identity server-side.
+- [ ] Replace workspace-scoped ownership with a single private library/project scope.
+- [ ] Keep private storage, short-lived signed upload/download URLs and server-generated object keys.
+- [ ] Configure and verify R2, Postgres, Modal and the access gate against real cloud accounts.
+- [ ] Add asset preview/download and safe cleanup/retention.
 
-**Exit:** a user can upload a permitted clip in the browser, validate its actual media in Modal and see the asset ready for AI analysis. Cloud-account integration testing remains a required gate.
+**Exit:** only the allowlisted operator can open the dashboard/API, upload a permitted source, validate it in Modal and see the asset ready for analysis. No public registration exists.
 
-## M2 — universal analysis pipeline
-- [ ] Transcribe and inspect complete short clips.
-- [ ] Chunk and analyze long uploaded VODs.
-- [ ] Detect highlights using ASR, audio energy/VAD and visual sampling.
-- [ ] Add optional chat/event metadata as a signal, never as source media.
-- [ ] Detect duplicate/reused moments.
-- [ ] Add creator/game/topic campaign compliance gate.
-- [ ] Return ranked moments with reason and timestamps.
+## M2 — analysis and highlight selection
+- [ ] Transcribe short clips with word-level timestamps.
+- [ ] Chunk and analyze long authorized videos.
+- [ ] Detect candidate moments using speech, audio energy/VAD and visual sampling.
+- [ ] Rank moments by context, reaction, humor, payoff and campaign fit.
+- [ ] Detect duplicates/reused moments and low-quality segments.
+- [ ] Apply creator/game/topic campaign compliance gates.
+- [ ] Return ranked candidate moments with timestamps, rationale and confidence.
+- [ ] Provide an operator review/selection step before rendering.
 
-**Exit:** the same analysis works for live-origin native clips and historical VOD files from any configured streamer.
+**Exit:** Clipro recommends the strongest moments from a supplied source and explains why they are worth editing.
 
-## M3 — professional editing engine
-- [ ] Remotion compositions and reusable style templates.
-- [ ] Dynamic word-synchronized captions.
-- [ ] Context-aware hook and title treatment.
+## M3 — professional editing and rendering
+- [ ] Generate a structured, editable timeline JSON plan.
+- [ ] Context-aware hook/title treatment without misrepresenting the source.
+- [ ] Accurate animated word-synchronized captions.
 - [ ] Purposeful transitions, zooms, punch-ins and motion graphics.
-- [ ] Smart facecam/gameplay layout and reframe.
-- [ ] Optional original narrator voiceover using Kokoro.
+- [ ] Smart gameplay/facecam layout and reframing.
+- [ ] Optional original narrator voiceover.
 - [ ] Licensed music/SFX library and rights metadata.
 - [ ] Voice/music ducking, normalization and final audio QA.
-- [ ] CTA/hashtag overlays from campaign profile.
-- [ ] FFmpeg final export and quality report.
+- [ ] Campaign CTA/hashtags and platform-specific export presets.
+- [ ] Render final MP4 and attach a technical/editorial quality report.
 
-**Exit:** output is a polished 9:16 MP4 with full editorial treatment, correct captions/CTA and campaign-specific rules.
+**Exit:** a polished short-form MP4 is generated from an approved edit plan and passes automated QA.
 
-## M4 — review dashboard
-- [ ] Preview, approve/reject/regenerate/download.
-- [ ] Expose timeline project and caption sidecar.
+## M4 — private review and delivery
+- [ ] Preview finished render in the private dashboard.
+- [ ] Approve, reject, request changes or regenerate.
+- [ ] Download final MP4, captions and timeline JSON.
+- [ ] Preserve project/edit revisions for iteration.
+- [ ] Optional manual post URL and analytics notes entered by the operator.
 - [ ] Enforce publication disabled server-side.
-- [ ] Record user-posted URL and live-since date.
-- [ ] Remind user about campaign retention period.
-- [ ] Collect post-publish metrics and analytics evidence.
 
-**Exit:** every rendered clip stays private until the user downloads and publishes manually.
+**Exit:** finished videos are delivered privately to the operator; nothing is published by Clipro.
 
-## M5 — additional source adapters
-- [ ] Twitch viewer-native clip workflow documentation/instructions; optional Editor API remains disabled unless separately authorized.
-- [ ] Kick viewer-native clip workflow documentation/instructions.
-- [ ] YouTube Clip reference storage and authorized-file workflow.
-- [ ] Optional creator-authorized direct relay for channels that provide it.
-- [ ] Platform-specific capability tests and UI messages.
+## M5 — additional source adapters and generic editing
+- [ ] Twitch viewer-native clip workflow guidance.
+- [ ] Kick viewer-native clip workflow guidance.
+- [ ] YouTube Clip reference and authorized-file workflow.
+- [ ] Generic uploaded-video intake independent of streaming platform.
+- [ ] Source-range selection and chunked analysis for long videos.
+- [ ] Multi-track manual editing, captions, overlays, music/SFX and export revisions.
 
-**Exit:** user can select Twitch, Kick or YouTube and is guided to a supported source method for live or past material.
-
-## M6 — general manual editor
-- [ ] Upload bins and multi-source projects.
-- [ ] Multi-track timeline UI.
-- [ ] Trim, split, reorder, transition and keyframe controls.
-- [ ] Edit captions, title, CTA and voiceover.
-- [ ] Add/replace licensed b-roll, music and SFX.
-- [ ] Autosave, undo/redo and project revisions.
-- [ ] Export presets for Shorts, Reels, TikTok and horizontal video.
-
-**Exit:** ordinary uploaded videos and stream-derived clips use the same renderer.
+**Exit:** the same private tool handles stream-derived clips and ordinary uploaded video projects.
 
 ## Not in scope
-- Automatic publishing to TikTok, Instagram, YouTube or any other destination.
+- Public sign-up, multiple users, teams, invitations, roles or billing.
+- Automatic publishing to TikTok, Instagram, YouTube or any destination.
 - Automatic raw-video extraction from arbitrary public stream URLs.
-- Twitch Editor role for Diego.
+- Twitch Editor role for Diego unless separately authorized.
 - Unofficial download/scraping workarounds.
+- Always-on livestream monitoring in the initial manual-source workflow.
 - Making platform engagement/audience guarantees.
