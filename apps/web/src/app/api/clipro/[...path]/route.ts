@@ -40,8 +40,14 @@ async function forward(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ detail: "The Clipro API URL is invalid." }, { status: 503 });
   }
 
+  let token: string;
   try {
-    const token = createApiAccessToken();
+    token = createApiAccessToken();
+  } catch {
+    return NextResponse.json({ detail: "API token signing is not configured on the server." }, { status: 503 });
+  }
+
+  try {
     const body = request.method === "GET" ? undefined : await request.text();
     const upstream = await fetch(target, {
       method: request.method,

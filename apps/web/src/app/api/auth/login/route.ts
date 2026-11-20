@@ -17,6 +17,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ detail: "Invalid sign-in request." }, { status: 400 });
   }
 
+  if (!process.env.CLIPRO_OPERATOR_PASSWORD || process.env.CLIPRO_OPERATOR_PASSWORD.length < 20) {
+    return NextResponse.json({ detail: "Private operator password is not configured on the server." }, { status: 503 });
+  }
   if (!verifyOperatorPassword(password)) {
     return NextResponse.json({ detail: "Invalid password." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
