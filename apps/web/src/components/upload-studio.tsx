@@ -232,7 +232,7 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
       setProcessingJob(job);
       setStatusMessage("Processing job dispatched to Modal.");
     } catch (error) {
-      setStatusMessage(error instanceof Error ? error.message : "Could not dispatch the media-probe job.");
+      setStatusMessage(error instanceof Error ? error.message : "Could not dispatch the processing job.");
     }
   }
 
@@ -349,7 +349,7 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
             <div className="asset-result">
               <span className="asset-check">✓</span>
               <div className="asset-result-copy">
-                <strong>{needsFinalize ? "Transfer complete · verifying asset" : processingJob?.status === "succeeded" ? "Source validated and ready" : "Source stored successfully"}</strong>
+                <strong>{needsFinalize ? "Transfer complete · verifying asset" : processingJob?.job_type === "highlight_analysis" && processingJob.status === "succeeded" ? "AI analysis completed" : processingJob?.status === "succeeded" ? "Source validated and ready" : "Source stored successfully"}</strong>
                 <small>Asset ID: {assetId}</small>
                 {processingJob && <small>{processingJob.job_type === "highlight_analysis" ? "AI analysis" : "Media validation"}: {processingJob.status}{processingJob.progress > 0 ? " · " + processingJob.progress + "%" : ""}</small>}
               </div>
