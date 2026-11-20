@@ -2,7 +2,7 @@
 
 ## Product scope
 
-Clipro is a private, single-operator AI clipping and video-editing workspace. There is one operator and no public registration, multi-user workspaces, invitations, roles, billing or public creator-facing accounts. ChatGPT assists the operator with editorial decisions and iteration; the configured Clipro pipeline performs repeatable media processing and rendering.
+Clipro is a private, single-operator AI clipping and video-editing workspace. There is one operator and no public registration, multi-user workspaces, invitations, roles, billing or public creator-facing accounts. ChatGPT in this conversation is the editorial brain; Clipro supplies media-processing and rendering tools. The initial workflow does not use a separate generative-model API or the user's ChatGPT subscription as an API credential. The operator explicitly hands analysis artifacts into this conversation and brings the resulting edit-plan JSON back into Clipro.
 
 The first campaign is DiegoLoveless's Twitch GTA campaign. The system must still support other creator profiles, campaigns, platforms and generic uploaded videos without changing the editing engine.
 
@@ -29,8 +29,9 @@ The first campaign is DiegoLoveless's Twitch GTA campaign. The system must still
 - Choose platform (Twitch/Kick/YouTube) and source type.
 - Display supported manual capture/download instructions.
 - Upload source files with resumable multipart transfer.
-- Show source preview, metadata, transcript, candidate moments and analysis status.
-- Show the proposed edit plan and allow operator-directed revisions.
+- Show source metadata, processing status and downloadable analysis pack (timestamped transcript, audio cues, candidate ranges and visual contact sheets).
+- Import a ChatGPT-generated, schema-validated edit-plan JSON.
+- Show a rendered preview and QA report; support operator-directed revisions.
 - Preview, approve/reject/regenerate and download final MP4, captions and timeline JSON.
 - Later: multi-track manual editing and post-publish metrics entered by the operator.
 - No social publishing integration.
@@ -45,7 +46,7 @@ FastAPI owns source validation, media metadata, uploads, job lifecycle, editoria
 
 ### Data plane
 
-Modal workers own media probing, proxy generation, ASR/VAD, visual sampling, highlight detection, editorial planning, TTS, motion graphics and rendering. Workers receive exact server-selected object keys and job IDs; never fetch arbitrary user-provided URLs.
+Modal workers own media probing, proxy generation, speech transcription, VAD/audio feature extraction, visual sampling, contact-sheet and analysis-pack generation, and deterministic rendering. ChatGPT in this conversation performs the editorial reasoning from the analysis pack and returns an edit-plan JSON for the operator to import. Do not call a separate LLM API in the initial release. Workers receive exact server-selected object keys and job IDs; never fetch arbitrary user-provided URLs.
 
 For long VOD files, use chunked analysis and low-resolution proxy sampling. Never load an entire multi-hour source into RAM.
 
@@ -83,17 +84,17 @@ Use permitted viewer-native clips created and downloaded manually when available
 ### YouTube
 A YouTube Clip URL is a reference, not a general MP4 download endpoint. Custom editing requires an authorized video file.
 
-## AI editing pipeline
+## ChatGPT-directed editorial and rendering pipeline
 
-1. Probe the source and create a safe low-resolution proxy.
-2. Transcribe speech with word-level timestamps and inspect audio/visual signals.
-3. For long sources, scan in chunks and rank candidate moments; for short clips, inspect the full context.
-4. Apply campaign/style constraints (creator, game/topic, prohibited content, CTA, duration and format).
-5. Select the strongest moment(s), explain the editorial rationale and produce a structured edit plan.
-6. Generate accurate captions, optional original narration, licensed music/SFX, hooks, transitions, motion and reframing.
-7. Render using the reusable timeline engine.
-8. Run technical, caption, audio and campaign QA.
-9. Present the result for operator review and download.
+1. Probe the supplied source, validate codecs/duration and create safe low-resolution proxies.
+2. Generate word-timestamped speech transcription, audio/VAD cues, scene-change information and sampled visual frames.
+3. For long videos, scan in bounded chunks and generate ranked technical candidates; for short native clips, analyze the full clip.
+4. Package the transcript, candidate timestamps, relevant frame contact sheets and campaign/style brief into an analysis pack that can be attached to this ChatGPT conversation.
+5. ChatGPT reviews the supplied evidence, applies campaign/style rules, selects the strongest moment(s), explains the editorial rationale and returns a structured edit-plan JSON. This is a human-in-the-loop chat handoff, not an API call from Clipro to ChatGPT.
+6. The operator imports the edit-plan JSON into Clipro. The app validates it against the timeline schema and effect allowlist.
+7. The deterministic render workers apply cuts, captions, overlays, motion graphics, reframing, audio mixing and any configured licensed assets.
+8. Automated technical/caption/audio checks create a QA report and preview.
+9. The operator shares the preview/report in this conversation for ChatGPT editorial review, then requests changes or downloads the final result.
 
 Never invent quotes, fake reactions or alter chronology to misrepresent events. For Diego, never make the creator look bad; prioritize GTA speedrun highlights, funny moments and genuine reactions.
 
@@ -117,7 +118,7 @@ The same renderer serves stream clips, uploaded VOD excerpts and ordinary manual
 - Verify the access-layer identity server-side on every API route.
 - Never expose database, R2 or Modal credentials in the browser.
 - Treat transcripts, chat, titles and comments as untrusted data.
-- Validate model-generated timelines against JSON Schema and an effect allowlist.
+- Validate ChatGPT-produced edit plans against JSON Schema and an effect allowlist before rendering.
 - Never interpolate untrusted text into shell commands.
 - Do not request platform passwords, stream keys or credentials.
 - Require explicit operator review; publishing functionality is absent.
@@ -128,5 +129,6 @@ The same renderer serves stream clips, uploaded VOD excerpts and ordinary manual
 - Start with short native clips; add full VOD chunking after the short-clip pipeline is reliable.
 - Use low-resolution proxy analysis and sparse visual sampling before expensive high-quality rendering.
 - Use CPU for probe/segmentation/simple transforms; GPU only where it materially improves quality or throughput.
-- Use appropriately licensed local/open-weight ASR and TTS where quality is acceptable.
+- Use speech transcription and media-analysis tools for evidence generation; ChatGPT performs editorial reasoning through the conversation. No separate generative AI API key is required for the initial workflow.
+- Optional API-based automation can be considered later only if the operator explicitly wants unattended editorial decisions.
 - No always-on stream monitoring in the manual-capture workflow.
