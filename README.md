@@ -5,25 +5,32 @@
 ## Operating workflow
 
 1. The operator uploads a permitted native clip or authorized video file.
-2. Clipro stores the source privately and starts an automated processing job.
-3. A video-capable AI agent analyzes the actual video and audio, finds candidate moments, compares context and selects the strongest highlights.
-4. The agent returns timestamped clip selections and a structured editing plan.
-5. Clipro's editing tools execute the plan: cuts, captions, hooks, reframing, motion graphics, transitions, music/SFX and audio mixing.
-6. Automated quality checks inspect the rendered output; the agent can request targeted revisions.
-7. Clipro presents the finished MP4 and a review/quality report for the operator to download.
+2. Clipro stores the source privately and starts a processing job.
+3. Modal provisions GPU inference for a self-hosted, open-weight multimodal model.
+4. The AI agent inspects the video and audio, finds candidate moments, checks surrounding context and selects the strongest highlights.
+5. The agent returns timestamped clip selections and a structured editing plan.
+6. Clipro's editing tools execute the plan: cuts, captions, hooks, reframing, motion graphics, transitions, music/SFX and audio mixing.
+7. The agent can inspect draft frames and QA results and request bounded revisions.
+8. Clipro presents the finished MP4 and a review report for the operator to download.
 
-The first AI provider candidate is **Google Gemini 3.8 Flash**, using its direct video-input capability and free API tier where available. Provider access is isolated behind an adapter so we can switch models without changing the editing engine. Free-tier availability, quotas and terms are not guaranteed. Google's unpaid tier may use submitted content to improve its products and may involve human review; do not submit sensitive, confidential or private footage under that tier. See [Google's pricing](https://ai.google.dev/gemini-api/docs/pricing), [video understanding](https://ai.google.dev/gemini-api/docs/video-understanding) and [terms](https://ai.google.dev/gemini-api/terms).
+## AI model and hosting
 
-The agent does not render pixels by itself. It understands the source, chooses exact timestamps and authors a validated edit plan; deterministic media tools execute those edits and encode the final video.
+Initial model candidate: **Qwen3.6-35B-A3B**, an open-weight multimodal model with video/image understanding and tool-calling capability. Host the model on Modal GPUs using a compatible inference engine such as vLLM or SGLang, with a provider-neutral adapter so the model can be replaced after quality testing.
 
-**Publishing is deliberately out of scope.** No social account integrations, auto-posting, scheduling or automatic engagement actions.
+Clipro will preprocess long videos into bounded segments, timestamped transcripts and sampled frames. The agent uses those observations to reason about moments and calls a restricted set of editing tools. FFmpeg/Remotion perform the actual media transformations; the model does not regenerate the source footage.
+
+No Gemini/OpenAI/other hosted model API key is required for this self-hosted path. Modal GPU compute is still metered. Modal's Starter plan currently includes $30/month of compute credits, but that is a limited allowance, not unlimited free inference; usage beyond credits is billed. Modal's separately hosted Model APIs are token-billed and are not covered by those compute credits. We intend to host our own weights rather than use those paid Model APIs.
+
+## Publishing
+
+Publishing is deliberately out of scope. No social account integrations, auto-posting, scheduling or automatic engagement actions. Finished videos are delivered privately for manual review and publication.
 
 ## Privacy and access
 
 - One operator; no public registration or multi-user workspace model.
 - The hosted dashboard/API should have a simple private access restriction.
 - Private media storage; no public buckets or public media URLs.
-- All provider, database, storage and Modal credentials remain server-side.
+- All model, storage, Modal and other credentials remain server-side.
 - Human review remains available before any finished video is published.
 - No publishing endpoint or publishing credentials.
 
@@ -54,11 +61,12 @@ The same timeline schema and renderer support stream clips and ordinary uploaded
 |---|---|
 | Private dashboard | Next.js + Uppy |
 | API/control plane | FastAPI |
-| Media storage | Cloudflare R2 (Google Drive may be optional archive/import later) |
-| Cloud execution | Modal |
-| Video understanding / agent | Gemini 3.8 Flash free tier initially, subject to quotas and data-use trade-offs |
-| Local media signals | FFmpeg/ffprobe, faster-whisper/WhisperX, VAD, scene detection and visual sampling |
-| Edit-plan contract | Versioned JSON timeline and strict tool schema |
+| Media storage | Cloudflare R2 |
+| Cloud execution and GPU hosting | Modal |
+| Multimodal video agent | Qwen3.6-35B-A3B self-hosted on Modal (initial candidate) |
+| Inference engine | vLLM or SGLang, subject to model compatibility testing |
+| Local media signals | FFmpeg/ffprobe, speech transcription, VAD, scene detection and visual sampling |
+| Agent tools | Restricted Python editing tools and validated timeline JSON |
 | Motion graphics | Remotion, subject to license eligibility |
 | Rendering | FFmpeg |
 | Delivery | Private preview and downloadable MP4 |
@@ -67,7 +75,7 @@ The same timeline schema and renderer support stream clips and ordinary uploaded
 
 The current feature branch has browser upload, R2 multipart handling, Postgres asset/job records and a Modal media-probe worker. It still contains Supabase Auth and workspace-membership assumptions. Those are legacy scaffolding and must be removed. The initial private release does not require Supabase.
 
-Not yet implemented: private single-operator refactor, Gemini video agent, highlight-selection pipeline, edit-plan tool execution, professional rendering, output review/download and end-to-end cloud integration.
+Not yet implemented: private single-operator refactor, self-hosted multimodal model deployment, video agent, highlight-selection/tool loop, professional rendering, output review/download and end-to-end cloud integration.
 
 See [ROADMAP.md](docs/ROADMAP.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [M1 media ingestion ADR](docs/ADR_001_MEDIA_INGESTION.md), and [tooling research](docs/TOOLING_RESEARCH.md).
 
