@@ -45,21 +45,26 @@ The editing engine is source-agnostic. The future manual timeline editor will us
 
 | Layer | Technology |
 |---|---|
+| Browser UI | Next.js + Uppy |
+| Control plane | FastAPI |
+| Authentication/metadata | Supabase Auth + Postgres (planned) |
+| Media storage | Cloudflare R2 (planned) |
 | Cloud execution | Modal |
-| Backend | Python, FastAPI |
-| Browser UI | Next.js |
-| Media analysis | FFmpeg/ffprobe, OpenCV, faster-whisper, Silero VAD |
-| Editorial plan | Provider-neutral structured JSON; local model first |
+| Media analysis | FFmpeg/ffprobe, PySceneDetect, faster-whisper/WhisperX, Silero VAD |
+| Editorial plan | Provider-neutral structured JSON |
 | Voiceover | Kokoro or another appropriately licensed TTS model |
-| Motion graphics | Remotion |
+| Motion graphics | Remotion, subject to license eligibility |
 | Rendering | FFmpeg |
-| Metadata | PostgreSQL when multi-user; SQLite for local prototype only |
-| Media artifacts | Object storage abstraction / Modal Volume for temporary worker files |
+| Timeline | Versioned JSON schema |
 
 ## Development status
 
-See [ROADMAP.md](docs/ROADMAP.md) and [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+See [ROADMAP.md](docs/ROADMAP.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [M1 media ingestion ADR](docs/ADR_001_MEDIA_INGESTION.md), and [tooling research](docs/TOOLING_RESEARCH.md).
 
+- M1 code: browser studio, Supabase magic-link authentication, workspace migration, authenticated R2 multipart upload API, durable asset/job schema and Modal ffprobe worker are implemented on the feature branch.
+- The Python tests and Next.js typecheck/production build pass in GitHub Actions.
+- Not yet verified against live cloud accounts: R2 bucket/CORS, Supabase migration/credentials and Modal deployment/dispatch. Uploads can be stored and jobs queued; automated media probing requires Modal setup.
+- Not implemented yet: AI highlight analysis, editorial plan generation, professional rendering and review/download UI.
 - Campaign-specific rules: [DiegoLoveless GTA profile](docs/campaigns/diego-loveless-gta6.md)
 - Source policy: [Source acquisition guide](docs/INGESTION_NO_OBS.md)
 - Browser capture steps: [Twitch, Kick and YouTube](docs/SOURCE_CAPTURE_GUIDE.md)

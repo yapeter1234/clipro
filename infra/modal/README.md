@@ -1,39 +1,90 @@
 # Modal deployment
 
-This folder will contain the Modal app definitions. Keep long-running ingest separate from short-lived analysis/render functions.
+Modal hosts the Clipro FastAPI control plane and the short-lived media workers. The API is an autoscaling HTTPS ASGI endpoint; the probe worker is a separate function with its own compute profile.
 
-## Planned Modal resources
+## Required secrets
 
-- `clipro-api`: web endpoint for the FastAPI control plane.
-- `clipro-ingest`: supervised live ingest process/MediaMTX, using authenticated ingress.
-- `clipro-analyze`: CPU-first window analysis.
-- `clipro-asr`: faster-whisper transcription worker.
-- `clipro-vision`: optional GPU worker invoked only for ranked candidates.
-- `clipro-tts`: Kokoro narration worker.
-- `clipro-render`: Remotion/FFmpeg rendering worker.
-- `clipro-cleanup`: TTL and temporary media cleanup.
+Create these two Modal Secrets from the Modal dashboard at https://modal.com/secrets or with the Modal CLI. Use the same Modal Environment for both apps.
 
-## Required secrets (names only)
+### \`clipro-api-secrets\`
 
-Do not commit secret values:
-- `CLIPRO_APP_SECRET`
-- `TWITCH_CLIENT_ID`
-- `TWITCH_CLIENT_SECRET`
-- `KICK_CLIENT_ID`
-- `KICK_CLIENT_SECRET`
-- `YOUTUBE_API_KEY` (if used)
-- `DATABASE_URL` (if using managed Postgres)
-- `OBJECT_STORAGE_* ` (only if configured)
+- \`SUPABASE_URL\`
+- \`SUPABASE_JWT_AUDIENCE=authenticated\`
+- \`DATABASE_URL\`
+- \`DATABASE_SSL=true\`
+- \`R2_ACCOUNT_ID\`
+- \`R2_ACCESS_KEY_ID\`
+- \`R2_SECRET_ACCESS_KEY\`
+- \`R2_BUCKET_NAME\`
+- \`CLIPRO_WEB_ORIGINS\` (local development and the Vercel production/preview origin)
+- \`CLIPRO_MODAL_DISPATCH_ENABLED=false\` for the first API deployment; enable only after the worker is deployed
+- \`CLIPRO_MODAL_APP_NAME=clipro-workers\`
+- \`CLIPRO_MODAL_PROBE_FUNCTION=probe_asset\`
+- \`MODAL_TOKEN_ID\`
+- \`MODAL_TOKEN_SECRET\`
 
-Only create platform secrets after the corresponding adapter is implemented and the user authorizes that platform.
+The Modal token lets the API container spawn jobs in the separate worker app. Create a dedicated token for the Clipro workspace and keep it only in this Secret.
 
-## Deployment gates
+### \`clipro-worker-secrets\`
 
-1. Prove RTMPS ingress works from a creator-owned test encoder.
-2. Prove a bounded buffer can recover after a worker restart.
-3. Verify TLS and per-session ingest-key revocation.
-4. Verify Modal egress, GPU and Sandbox costs on a short test.
-5. Verify cleanup removes expired source material.
-6. Add observability and hard spending quotas before a long monitoring session.
+- \`DATABASE_URL\`
+- \`R2_ACCOUNT_ID\`
+- \`R2_ACCESS_KEY_ID\`
+- \`R2_SECRET_ACCESS_KEY\`
+- \`R2_BUCKET_NAME\`
 
-Modal Sandbox lifetime is bounded. Never rely on one process running indefinitely; checkpoint monitor state, use a watchdog and restart gracefully.
+Never commit secret values, paste them into chat, or place them in browser environment variables.
+
+## Deploy order
+
+1. Apply the Supabase migrations in numeric order.
+2. Create the private Cloudflare R2 bucket, bucket-scoped API token and required CORS policy.
+3. Create both Modal Secrets described above.
+4. From a cloud development shell at the repository root, authenticate the Modal CLI and deploy the media worker:
+
+       python -m pip install --upgrade modal
+       python -m modal setup
+       modal deploy infra/modal/clipro_workers.py
+
+5. Deploy the API:
+
+       modal deploy infra/modal/clipro_api.py
+
+6. Copy the HTTPS URL printed for the \`fastapi_app\` web endpoint. Set it as \`NEXT_PUBLIC_CLIPRO_API_URL\` in the Next.js/Vercel environment.
+7. Set \`CLIPRO_WEB_ORIGINS\` in \`clipro-api-secrets\` to the exact web origins (for local development include \`http://localhost:3000\`; add the Vercel domain after deployment), then redeploy the API.
+8. Confirm \`/healthz\` returns \`{"status":"ok","service":"clipro-api"}\`.
+9. Deploy the Next.js app from \`apps/web\` on Vercel and configure its Supabase URL, publishable key and API URL.
+10. After the API and worker are deployed and tested, update \`CLIPRO_MODAL_DISPATCH_ENABLED=true\` in the API Secret and redeploy the API.
+
+The API can be deployed before the worker with dispatch disabled. Finalizing an upload will store it and leave its probe job queued. Do not enable dispatch before the worker exists and the API Modal token is configured.
+
+## Worker: \`clipro-workers\`
+
+- Function: \`probe_asset\`
+- Image: Debian Slim + FFmpeg + Python 3.12
+- Resources: 2 CPU, 4 GiB RAM, 50 GiB ephemeral disk, 30-minute timeout
+- Retries: one retry for transient infrastructure failures
+- Max containers: 2
+
+The function downloads only the exact private R2 object associated with an asset and workspace. It runs ffprobe, computes SHA-256, creates a thumbnail and writes media metadata/job status to Postgres. It never downloads platform URLs or public VODs.
+
+## API: \`clipro-api\`
+
+- Function: \`fastapi_app\`
+- Image: Python 3.12 with API requirements
+- Resources: 1 CPU, 2 GiB RAM, 15-minute request timeout
+- Autoscaling with a short scale-down window
+
+The API verifies Supabase JWTs, checks workspace membership, handles upload-session state and signs R2 multipart requests. It never proxies video bytes.
+
+## Database connection string
+
+From the Supabase Connect dialog, choose the Session pooler connection string when you need IPv4-compatible connectivity. Copy the full URI and replace only its password placeholder. The API strips the libpq \`sslmode\`/pooler hints and applies TLS with asyncpg. Keep the password URL-encoded if it contains reserved characters.
+
+## Operational notes
+
+- R2 remains durable media storage. Modal ephemeral disk is temporary scratch space for one job.
+- Configure an R2 lifecycle rule to abort incomplete multipart uploads after the upload-session TTL.
+- Keep the bucket private and use short-lived presigned URLs.
+- Keep API token and R2/Postgres credentials out of the Next.js public environment.
+- Do not enable always-on live stream monitoring in the manual-capture MVP.

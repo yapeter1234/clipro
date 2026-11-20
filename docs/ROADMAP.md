@@ -7,20 +7,24 @@
 - [x] Add tests for platform source constraints.
 - [ ] Add generic streamer/campaign/style profile CRUD.
 - [ ] Add CI coverage for all API/worker modules and config JSON.
-- [ ] Add test media fixtures and source probe.
+- [x] Add ffprobe helper tests and media probe worker.\n- [ ] Add end-to-end test against real Cloudflare R2/Supabase/Modal resources.
 
 **Exit:** a user can define a creator/campaign profile without changing code; source policies correctly describe live vs past video for each platform.
 
-## M1 — browser source intake
-- [ ] Add browser upload UI with resumable/chunked upload.
-- [ ] Add source metadata form (platform, creator/channel, live/past/uploaded, source URL/clip URL, campaign, authorization).
-- [ ] Add media probe (ffprobe) and file validation.
-- [ ] Add source-range selector for long authorized VOD files.
-- [ ] Add capture instructions and file-download guide per platform.
-- [ ] Enforce no public-URL downloading in the backend.
-- [ ] Add upload storage abstraction, checksum and TTL cleanup.
+## M1 — browser source intake and media validation
+- [x] Add backend upload preflight contract and endpoint for source method, rights confirmation, file type and size.
+- [x] Add Supabase magic-link sign-in and workspace membership schema/RLS migration.
+- [x] Add Next.js source metadata form and Clipro-styled upload dashboard.
+- [x] Add Uppy 6 multipart browser upload integration using server-signed R2 requests.
+- [x] Add authenticated R2 multipart session/sign/finalize/abort endpoints and durable asset records.
+- [x] Add Modal ffprobe worker, checksum, thumbnail generation and processing-job records.
+- [x] Add CI for Python API/worker tests and Next.js typecheck/production build.
+- [ ] Configure and verify the migration, R2 bucket/CORS and Modal worker against the user's real cloud accounts.
+- [ ] Add a source-range selector for long authorized VOD files.
+- [ ] Add asset preview/download signed URLs.
+- [ ] Add expired multipart-upload cleanup and retention jobs.
 
-**Exit:** user can upload a manually downloaded Twitch/Kick clip or an authorized source file and start an editing job in a browser.
+**Exit:** a user can upload a permitted clip in the browser, validate its actual media in Modal and see the asset ready for AI analysis. Cloud-account integration testing remains a required gate.
 
 ## M2 — universal analysis pipeline
 - [ ] Transcribe and inspect complete short clips.

@@ -1,39 +1,42 @@
 # Control API
 
-The FastAPI control plane should be stateless where possible; durable state belongs in the database and media workers.
+The FastAPI control plane owns source validation, multipart orchestration, durable job state and review/download APIs. Postgres stores metadata; private R2 stores media.
 
-## API contract (planned)
+## Upload endpoints
 
-### Monitoring
-- `POST /api/v1/monitors` — create one monitor session.
-- `GET /api/v1/monitors/{monitor_id}` — retrieve health/status.
-- `POST /api/v1/monitors/{monitor_id}/stop` — stop monitor.
-- `POST /api/v1/webhooks/twitch` — verified Twitch EventSub callback.
-- `POST /api/v1/webhooks/kick` — verified Kick webhook.
-- `POST /api/v1/webhooks/youtube` — only if a supported YouTube notification integration is configured.
+- GET /healthz
+- POST /api/v1/uploads/preflight
+- POST /api/v1/uploads — creates a private R2 multipart upload and persistent Clipro asset/session.
+- POST /api/v1/uploads/sign-request — verifies session ownership and presigns an Uppy 6 S3 operation.
+- POST /api/v1/uploads/finalize — verifies the R2 object and creates a durable media-probe job.
+- POST /api/v1/uploads/abort
+- GET /api/v1/uploads/asset/{asset_id} — returns actual probe metadata and latest job state.
 
-### Candidates and renders
-- `GET /api/v1/candidates` — list candidate moments.
-- `GET /api/v1/candidates/{candidate_id}` — details and evidence.
-- `POST /api/v1/candidates/{candidate_id}/render` — create or regenerate a render.
-- `GET /api/v1/renders/{render_id}` — status, asset links and QA result.
-- `POST /api/v1/renders/{render_id}/approve` — bind human approval to this exact render/checksum.
-- `POST /api/v1/renders/{render_id}/reject` — reject render.
-- `GET /api/v1/renders/{render_id}/download` — authorized short-lived download.
+## Processing jobs
 
-### Publishing
-Not implemented in MVP. A future publish endpoint must verify workspace ownership, campaign requirements, rights/authorization and an approval record for the exact render version. Any modification creates a new version requiring new approval.
+- GET /api/v1/jobs/{job_id} — authenticated status/progress/result.
+- POST /api/v1/jobs/{job_id}/dispatch — retry dispatch after Modal has been deployed/configured.
 
-## State model
+The finalize endpoint does not fail an already completed upload when Modal is unavailable. It retains the job in queued state and records the dispatch issue; an owner/editor can retry after configuration.
 
-Monitor: `created -> starting -> monitoring -> stopping -> stopped | failed`.
+## Required setup
 
-Candidate: `detected -> analyzing -> selected | discarded`.
+1. Apply both migrations in supabase/migrations in numeric order.
+2. Create a private R2 bucket and a bucket-scoped API token.
+3. Configure R2 CORS for the exact Clipro web origin; allow PUT and expose ETag.
+4. Configure variables from services/api/.env.example as secure service environment variables.
+5. Deploy infra/modal/clipro_workers.py after creating the Modal Secret described in infra/modal/README.md.
+6. Set CLIPRO_MODAL_DISPATCH_ENABLED=true and add Modal API credentials to the API environment (MODAL_TOKEN_ID and MODAL_TOKEN_SECRET).
+7. Set DATABASE_SSL=true for Supabase Postgres and add exact web origins to CLIPRO_WEB_ORIGINS and Supabase Auth redirects.
 
-Render: `queued -> rendering -> qa_passed -> pending_approval -> approved | rejected`.
+Do not expose database, Modal or R2 credentials in Next.js public environment variables. Keep the R2 bucket private.
 
-Never use client-supplied state transitions as authority. The backend validates every transition and persists an audit event.
+## Upload and job states
 
-## Security
+Upload: uploading -> completed | aborted | expired | failed.
+Asset: uploading -> uploaded -> probing -> ready | rejected | failed.
+Job: queued -> running -> succeeded | failed.
 
-All non-webhook APIs require workspace authentication and authorization. Webhooks require provider signature verification. Ingest is separately authenticated and rate-limited. The API must not proxy arbitrary user-supplied URLs or invoke shell commands using untrusted strings.
+Multipart completion proves the declared object size was uploaded. The Modal ffprobe worker still validates the actual file bytes before analysis.
+
+No automatic social publishing endpoint or credentials exist.
