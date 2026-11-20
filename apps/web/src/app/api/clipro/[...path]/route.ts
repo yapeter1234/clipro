@@ -13,7 +13,8 @@ function isAllowedPath(path: string): boolean {
     path === "api/v1/uploads/abort" ||
     new RegExp("^api/v1/uploads/asset/" + UUID + "$", "i").test(path) ||
     new RegExp("^api/v1/jobs/" + UUID + "$", "i").test(path) ||
-    new RegExp("^api/v1/jobs/" + UUID + "/dispatch$", "i").test(path);
+    new RegExp("^api/v1/jobs/" + UUID + "/dispatch$", "i").test(path) ||
+    new RegExp("^api/v1/jobs/assets/" + UUID + "/analyze$", "i").test(path);
 }
 
 async function forward(request: NextRequest, context: RouteContext) {

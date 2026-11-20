@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     clipro_web_origins: str = "http://localhost:3000"
     clipro_modal_app_name: str = "clipro-workers"
     clipro_modal_probe_function: str = "probe_asset"
+    clipro_modal_analysis_function: str = "analyze_asset"
     clipro_modal_dispatch_enabled: bool = False
 
     upload_max_file_size_bytes: int = Field(default=20 * 1024**3, ge=1, le=5 * 1024**4)

@@ -23,3 +23,18 @@ def spawn_media_probe(*, job_id: str, asset_id: str, workspace_id: str) -> str:
     )
     call = function.spawn(job_id, asset_id, workspace_id)
     return str(call.object_id)
+
+
+
+def spawn_highlight_analysis(*, job_id: str, asset_id: str, workspace_id: str) -> str:
+    """Spawn the deployed Modal multimodal analysis function."""
+    settings = get_settings()
+    if not settings.clipro_modal_dispatch_enabled:
+        raise ModalDispatchDisabled("Modal dispatch is disabled.")
+    import modal
+    function = modal.Function.from_name(
+        settings.clipro_modal_app_name,
+        settings.clipro_modal_analysis_function,
+    )
+    call = function.spawn(job_id, asset_id, workspace_id)
+    return str(call.object_id)
