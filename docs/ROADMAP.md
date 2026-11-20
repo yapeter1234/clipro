@@ -12,14 +12,17 @@
 - [x] Browser upload dashboard and Uppy multipart upload foundation.
 - [x] R2 multipart orchestration and server-side object verification.
 - [x] Modal media-probe worker and durable job records.
-- [ ] Remove Supabase Auth, magic-link sign-in, user IDs, workspaces and membership joins.
-- [ ] Defer Supabase/Postgres initially; use the simplest reliable job/asset metadata store.
-- [ ] Add one simple private access restriction for the hosted dashboard and API.
-- [ ] Keep R2 private with short-lived upload/download URLs.
-- [ ] Configure and verify R2 and Modal.
-- [ ] Add asset preview/download and retention cleanup.
+- [ ] Replace Supabase magic-link login with a private operator password session.
+- [ ] Protect Next.js routes with a signed HttpOnly session cookie.
+- [ ] Independently protect FastAPI endpoints with short-lived, audience-restricted operator tokens.
+- [ ] Remove browser Supabase Auth usage and the public-facing workspace/account UX.
+- [ ] Migrate auth.users foreign-key assumptions to one fixed operator identity/workspace.
+- [ ] Keep Postgres and private R2 as a transitional compatibility path until replacement tests pass.
+- [ ] Prototype Modal Volume chunk storage, finalization, private download and cleanup.
+- [ ] Remove R2 only after Modal storage passes interruption, resume, checksum and cross-container tests.
+- [ ] Add private asset preview/download and retention cleanup.
 
-**Exit:** operator uploads a permitted video; its metadata, thumbnail and private asset state are validated and visible.
+**Exit:** only the operator can access Clipro; an authorized source upload resumes safely, validates on Modal, and remains private.
 
 ## M2 — Modal-hosted video agent
 - [ ] Deploy a provider-neutral model adapter on Modal GPUs.
