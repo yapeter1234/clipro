@@ -1,46 +1,45 @@
 # Modal deployment
 
-Modal hosts the Clipro FastAPI control plane and the short-lived media workers. The API is an autoscaling HTTPS ASGI endpoint; the probe worker is a separate function with its own compute profile.
+Modal hosts Clipro's public FastAPI control plane and serverless media workers. The API is public in prototype mode: there is no user password, browser session, Supabase Auth, or shared Clipro API signing secret.
 
-## Required secrets
+## Required Modal Secrets
 
-Create these two Modal Secrets from the Modal dashboard at https://modal.com/secrets or with the Modal CLI. Use the same Modal Environment for both apps.
+Create the following two Modal Secrets in the same Modal Environment.
 
-### \`clipro-api-secrets\`
+### clipro-api-secrets
 
-- \`SUPABASE_URL\`
-- \`SUPABASE_JWT_AUDIENCE=authenticated\`
-- \`DATABASE_URL\`
-- \`DATABASE_SSL=true\`
-- \`R2_ACCOUNT_ID\`
-- \`R2_ACCESS_KEY_ID\`
-- \`R2_SECRET_ACCESS_KEY\`
-- \`R2_BUCKET_NAME\`
-- \`CLIPRO_WEB_ORIGINS\` (local development and the Vercel production/preview origin)
-- \`CLIPRO_MODAL_DISPATCH_ENABLED=false\` for the first API deployment; enable only after the worker is deployed
-- \`CLIPRO_MODAL_APP_NAME=clipro-workers\`
-- \`CLIPRO_MODAL_PROBE_FUNCTION=probe_asset\`
-- \`MODAL_TOKEN_ID\`
-- \`MODAL_TOKEN_SECRET\`
+- DATABASE_URL
+- DATABASE_SSL=true
+- R2_ACCOUNT_ID
+- R2_ACCESS_KEY_ID
+- R2_SECRET_ACCESS_KEY
+- R2_BUCKET_NAME
+- CLIPRO_WEB_ORIGINS=*
+- CLIPRO_MODAL_DISPATCH_ENABLED=false for first deployment; enable after workers are deployed
+- CLIPRO_MODAL_APP_NAME=clipro-workers
+- CLIPRO_MODAL_PROBE_FUNCTION=probe_asset
+- CLIPRO_MODAL_ANALYSIS_FUNCTION=analyze_asset
+- MODAL_TOKEN_ID
+- MODAL_TOKEN_SECRET
 
-The Modal token lets the API container spawn jobs in the separate worker app. Create a dedicated token for the Clipro workspace and keep it only in this Secret.
+The Modal token is infrastructure-to-infrastructure access used by FastAPI to spawn worker calls in the separate Modal app. It is not a Clipro user API password. Keep it in this server-side Modal Secret.
 
-### \`clipro-worker-secrets\`
+### clipro-worker-secrets
 
-- \`DATABASE_URL\`
-- \`R2_ACCOUNT_ID\`
-- \`R2_ACCESS_KEY_ID\`
-- \`R2_SECRET_ACCESS_KEY\`
-- \`R2_BUCKET_NAME\`
+- DATABASE_URL
+- R2_ACCOUNT_ID
+- R2_ACCESS_KEY_ID
+- R2_SECRET_ACCESS_KEY
+- R2_BUCKET_NAME
 
-Never commit secret values, paste them into chat, or place them in browser environment variables.
+These are service credentials, not user login credentials. Never place them in browser-exposed environment variables or commit their values.
 
 ## Deploy order
 
-1. Apply the Supabase migrations in numeric order.
-2. Create the private Cloudflare R2 bucket, bucket-scoped API token and required CORS policy.
-3. Create both Modal Secrets described above.
-4. From a cloud development shell at the repository root, authenticate the Modal CLI and deploy the media worker:
+1. Create the Postgres project and apply all repository migrations in numeric order.
+2. Create a private Cloudflare R2 bucket, bucket-scoped API token and browser CORS policy for the Vercel domain.
+3. Create both Modal Secrets above.
+4. From any authenticated deployment terminal or CI job, deploy the workers:
 
        python -m pip install --upgrade modal
        python -m modal setup
@@ -50,55 +49,30 @@ Never commit secret values, paste them into chat, or place them in browser envir
 
        modal deploy infra/modal/clipro_api.py
 
-6. Copy the HTTPS URL printed for the \`fastapi_app\` web endpoint. Set it as \`CLIPRO_API_URL\` in the Next.js/Vercel environment.
-7. Set \`CLIPRO_WEB_ORIGINS\` in \`clipro-api-secrets\` to the exact web origins (for local development include \`http://localhost:3000\`; add the Vercel domain after deployment), then redeploy the API.
-8. Confirm \`/healthz\` returns \`{"status":"ok","service":"clipro-api"}\`.
-9. Deploy the Next.js app from \`apps/web\` on Vercel and configure its Supabase URL, publishable key and API URL.
-10. After the API and worker are deployed and tested, update \`CLIPRO_MODAL_DISPATCH_ENABLED=true\` in the API Secret and redeploy the API.
+6. Copy the HTTPS URL printed for fastapi_app. Set it as CLIPRO_API_URL in Vercel.
+7. Confirm /healthz returns {"status":"ok","service":"clipro-api"}.
+8. After confirming the worker app is deployed and the API Modal credentials work, set CLIPRO_MODAL_DISPATCH_ENABLED=true in clipro-api-secrets and redeploy the API.
+9. Deploy the Next.js app from apps/web on Vercel. Only CLIPRO_API_URL is required by the web app.
 
-The API can be deployed before the worker with dispatch disabled. Finalizing an upload will store it and leave its probe job queued. Do not enable dispatch before the worker exists and the API Modal token is configured.
+## Worker: clipro-workers
 
-## Worker: \`clipro-workers\`
+- probe_asset: downloads an R2 source, runs ffprobe, computes SHA-256 and creates a thumbnail.
+- analyze_asset: transcribes audio locally with faster-whisper small, samples up to 18 frames, runs Qwen2.5-VL-3B-Instruct on a T4 GPU, and stores ranked highlight timestamps in the processing job.
 
-- Function: \`probe_asset\`
-- Image: Debian Slim + FFmpeg + Python 3.12
-- Resources: 2 CPU, 4 GiB RAM, 50 GiB ephemeral disk, 30-minute timeout
-- Retries: one retry for transient infrastructure failures
-- Max containers: 2
+Neither worker downloads platform URLs or public VODs. Workers fetch only the R2 object identified by the asset row in Postgres.
 
-The probe function downloads the exact private R2 object, runs ffprobe, computes SHA-256 and creates a thumbnail. The analysis function uses faster-whisper small for local transcription and Qwen2.5-VL-3B-Instruct on a T4 GPU to inspect sampled frames and transcript, returning ranked highlight timestamps. Neither function downloads platform URLs or public VODs.
+## API: clipro-api
 
-## API: \`clipro-api\`
-
-- Function: \`fastapi_app\`
-- Image: Python 3.12 with API requirements
-- Resources: 1 CPU, 2 GiB RAM, 15-minute request timeout
-- Autoscaling with a short scale-down window
-
-The API verifies the private operator bearer token, checks workspace membership, handles upload-session state, signs R2 multipart requests and dispatches the Modal analysis function. It never proxies video bytes.
-
-## Database connection string
-
-From the Supabase Connect dialog, choose the Session pooler connection string when you need IPv4-compatible connectivity. Copy the full URI and replace only its password placeholder. The API strips the libpq \`sslmode\`/pooler hints and applies TLS with asyncpg. Keep the password URL-encoded if it contains reserved characters.
+- FastAPI ASGI endpoint deployed on Modal.
+- Public HTTP endpoints; no user account or bearer token required.
+- Uses one internal shared workspace identity to satisfy current ownership columns in the prototype schema.
+- Signs short-lived R2 multipart operations and dispatches jobs to Modal workers.
+- Never proxies video bytes; the browser uploads multipart chunks directly to R2.
 
 ## Operational notes
 
 - R2 remains durable media storage. Modal ephemeral disk is temporary scratch space for one job.
-- Configure an R2 lifecycle rule to abort incomplete multipart uploads after the upload-session TTL.
-- Keep the bucket private and use short-lived presigned URLs.
-- Keep API token and R2/Postgres credentials out of the Next.js public environment.
-- Do not enable always-on live stream monitoring in the manual-capture MVP.
-
-
-## AI highlight analysis
-
-The \`analyze_asset\` Modal function is deployed with the same worker command as \`probe_asset\`.
-It runs on a T4 GPU, downloads Qwen2.5-VL-3B-Instruct on first use, transcribes audio locally
-with faster-whisper small, samples up to 18 frames, and writes ranked candidate timestamps to
-the \`highlight_analysis\` processing job. The browser dashboard starts this job after media
-validation and displays its results. No hosted model API key is required.
-
-Apply the new migration \`supabase/migrations/202611200001_highlight_analysis.sql\` before
-starting analysis jobs. Set \`CLIPRO_MODAL_ANALYSIS_FUNCTION=analyze_asset\` in the API
-environment (the code default is already this value). Deploy the worker and API, then set
-\`CLIPRO_MODAL_DISPATCH_ENABLED=true\` in the API secret to enable job dispatch.
+- Keep the R2 bucket private; browser uploads use short-lived signed operations.
+- The app is intentionally public and has no per-user workspace isolation, quotas, or abuse controls yet. Anyone with the URL can submit work and consume configured storage/GPU resources.
+- Do not enable always-on live stream monitoring in the manual-source prototype.
+- The analysis path returns ranked highlight timestamps. MP4 rendering/export is a separate implementation milestone.

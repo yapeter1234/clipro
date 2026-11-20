@@ -1,11 +1,10 @@
-"""Clipro FastAPI control-plane entrypoint."""
+"""Clipro FastAPI public prototype control-plane entrypoint."""
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .auth import CurrentUser, get_current_user
 from .database import close_pool
 from .ingestion import UploadPreflightRequest, UploadPreflightResponse, validate_upload_preflight
 from .routers.jobs import router as jobs_router
@@ -21,12 +20,13 @@ async def lifespan(_: FastAPI):
 
 
 settings = get_settings()
-allowed_origins = [origin.strip() for origin in settings.clipro_web_origins.split(",") if origin.strip()]
+configured_origins = [origin.strip() for origin in settings.clipro_web_origins.split(",") if origin.strip()]
+allowed_origins = ["*"] if "*" in configured_origins else configured_origins
 
 app = FastAPI(
     title="Clipro API",
-    version="0.5.0",
-    description="Control plane for Clipro's source intake and editing jobs.",
+    version="0.6.0",
+    description="Public prototype control plane for Clipro's source intake and editing jobs.",
     lifespan=lifespan,
 )
 app.add_middleware(
@@ -34,7 +34,7 @@ app.add_middleware(
     allow_origins=allowed_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Content-Type"],
 )
 app.include_router(uploads_router)
 app.include_router(jobs_router)
@@ -56,8 +56,5 @@ def healthz() -> dict[str, str]:
 
 
 @app.post("/api/v1/uploads/preflight", response_model=UploadPreflightResponse, tags=["uploads"])
-def upload_preflight(
-    submission: UploadPreflightRequest,
-    _: CurrentUser = Depends(get_current_user),
-) -> UploadPreflightResponse:
+def upload_preflight(submission: UploadPreflightRequest) -> UploadPreflightResponse:
     return validate_upload_preflight(submission)

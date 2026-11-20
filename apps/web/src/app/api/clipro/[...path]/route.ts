@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createApiAccessToken, SESSION_COOKIE, verifyOperatorSession } from "@/lib/clipro-auth";
 
 export const runtime = "nodejs";
 type RouteContext = { params: Promise<{ path: string[] }> };
@@ -18,12 +17,10 @@ function isAllowedPath(path: string): boolean {
 }
 
 async function forward(request: NextRequest, context: RouteContext) {
+  // Keep the proxy same-origin for browser writes; it is not an account gate.
   const origin = request.headers.get("origin");
-  if (request.method !== "GET" && (!origin || origin !== new URL(request.url).origin)) {
+  if (request.method !== "GET" && origin && origin !== new URL(request.url).origin) {
     return NextResponse.json({ detail: "Request origin rejected." }, { status: 403 });
-  }
-  if (!verifyOperatorSession(request.cookies.get(SESSION_COOKIE)?.value)) {
-    return NextResponse.json({ detail: "Authentication required." }, { status: 401 });
   }
 
   const { path: segments } = await context.params;
@@ -41,21 +38,13 @@ async function forward(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ detail: "The Clipro API URL is invalid." }, { status: 503 });
   }
 
-  let token: string;
-  try {
-    token = createApiAccessToken();
-  } catch {
-    return NextResponse.json({ detail: "API token signing is not configured on the server." }, { status: 503 });
-  }
-
   try {
     const body = request.method === "GET" ? undefined : await request.text();
     const upstream = await fetch(target, {
       method: request.method,
       cache: "no-store",
-      headers: {
-        Authorization: "Bearer " + token,
-        ...(body === undefined ? {} : { "Content-Type": request.headers.get("content-type") ?? "application/json" }),
+      headers: body === undefined ? {} : {
+        "Content-Type": request.headers.get("content-type") ?? "application/json",
       },
       ...(body === undefined ? {} : { body }),
     });

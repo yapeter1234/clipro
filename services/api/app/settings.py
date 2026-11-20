@@ -13,9 +13,6 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    clipro_api_token_secret: str | None = None
-    clipro_api_token_issuer: str = "clipro-web"
-    clipro_api_token_audience: str = "clipro-api"
     database_url: str | None = None
     database_ssl: bool = True
 
@@ -24,7 +21,8 @@ class Settings(BaseSettings):
     r2_secret_access_key: str | None = None
     r2_bucket_name: str | None = None
 
-    clipro_web_origins: str = "http://localhost:3000"
+    # Public prototype: browser requests are not authenticated by origin.
+    clipro_web_origins: str = "*"
     clipro_modal_app_name: str = "clipro-workers"
     clipro_modal_probe_function: str = "probe_asset"
     clipro_modal_analysis_function: str = "analyze_asset"
