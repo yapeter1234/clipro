@@ -1,78 +1,78 @@
 # Roadmap and acceptance criteria
 
-## M0 — source, campaign and timeline contracts
+## M0 — source and timeline contracts
 - [x] Repository scaffold, timeline schema and campaign/style architecture.
-- [x] Define manual source acquisition boundaries.
-- [x] Add source policy for Twitch/Kick/YouTube live and past broadcasts.
-- [x] Add tests for platform source constraints.
-- [x] Add ffprobe helper tests and media probe worker.
-- [ ] Add end-to-end test against real Cloudflare R2, Postgres and Modal resources.
+- [x] Define manual source acquisition boundaries for Twitch/Kick/YouTube.
+- [x] Add source-policy tests and ffprobe helper tests.
+- [ ] Verify private upload/storage/Modal integration against real accounts.
 
-**Exit:** supported source files can be safely ingested and described independently of any creator/campaign.
+**Exit:** permitted source files can be safely ingested independent of creator/campaign.
 
-## M1 — private single-operator foundation (refactor required)
-- [x] Browser upload dashboard and Uppy 6 multipart upload integration.
+## M1 — private single-operator foundation
+- [x] Browser upload dashboard and Uppy multipart upload foundation.
 - [x] R2 multipart orchestration and server-side object verification.
-- [x] Durable asset/job records and Modal media-probe worker.
-- [ ] Remove Supabase Auth, magic-link sign-in, user IDs, workspace tables/membership joins and multi-user RLS assumptions.
-- [ ] Defer Supabase/Postgres for the first private release; persist minimal asset/job manifests in the existing private storage layer unless a database proves necessary.
-- [ ] Use a simple single-operator access password for the hosted dashboard/API (never a browser-embedded storage credential).
-- [ ] Keep R2 private, with short-lived upload/download URLs and server-generated object keys.
-- [ ] Configure and verify R2 and Modal against the operator's accounts.
-- [ ] Add asset preview/download and safe cleanup/retention.
+- [x] Modal media-probe worker and durable job records.
+- [ ] Remove Supabase Auth, magic-link sign-in, user IDs, workspaces and membership joins.
+- [ ] Defer Supabase/Postgres initially; use the simplest reliable job/asset metadata store.
+- [ ] Add one simple private access restriction for the hosted dashboard and API.
+- [ ] Keep R2 private with short-lived upload/download URLs.
+- [ ] Configure and verify R2 and Modal.
+- [ ] Add asset preview/download and retention cleanup.
 
-**Exit:** only the allowlisted operator can open the dashboard/API, upload a permitted source, validate it in Modal and see the asset ready for analysis. No public registration exists.
+**Exit:** operator uploads a permitted video; its metadata, thumbnail and private asset state are validated and visible.
 
-## M2 — analysis and highlight selection
-- [ ] Transcribe clips with word-level timestamps and produce scene/audio analysis.
-- [ ] Chunk long authorized videos and generate visual contact sheets.
-- [ ] Build a portable analysis pack (transcript, candidate ranges, key frames, metadata and campaign brief).
-- [ ] Import analysis packs into this ChatGPT conversation for editorial selection and reasoning.
-- [ ] Generate a versioned edit-plan JSON in ChatGPT; no separate generative-model API key is required.
-- [ ] Validate and import the ChatGPT edit plan back into Clipro.
-- [ ] Provide operator review/selection before rendering.
+## M2 — video-understanding agent
+- [ ] Integrate a provider-neutral video-model adapter, initially Gemini 3.8 Flash.
+- [ ] Support server-side upload of video to Gemini Files API (free tier currently documents 2 GB max) and poll processing state.
+- [ ] Add local transcript, word timestamps, audio activity, scene-change and motion signals.
+- [ ] Use agentic video navigation for long VODs; targeted dense frame inspection for fast gameplay.
+- [ ] Generate ranked highlight candidates with exact start/end times, context, payoff, rationale and confidence.
+- [ ] Apply campaign constraints (creator safety, GTA-only, allowed source types, CTA, hashtags, content bans).
+- [ ] Produce strictly schema-valid timeline/edit-plan JSON.
+- [ ] Add bounded tool-calling for candidate preview and evidence inspection.
+- [ ] Add quota-aware retries, model fallback and a clear free-tier quota error state.
+- [ ] Document the free-tier data-use trade-off and never upload confidential footage to unpaid API tiers.
 
-**Exit:** Clipro creates an analysis pack that ChatGPT can use to select the strongest moments and return a validated edit plan. The explicit chat handoff replaces a separate LLM API integration in the initial release.
+**Exit:** after upload, the agent inspects the source video itself, finds the best moment(s), explains selection and emits an executable edit plan.
 
 ## M3 — professional editing and rendering
-- [ ] Execute the ChatGPT-generated structured, editable timeline JSON plan.
-- [ ] Context-aware hook/title treatment without misrepresenting the source.
+- [ ] Execute validated agent edit plans using FFmpeg and Remotion.
+- [ ] Context-aware hooks and title treatments without misrepresenting events.
 - [ ] Accurate animated word-synchronized captions.
 - [ ] Purposeful transitions, zooms, punch-ins and motion graphics.
-- [ ] Smart gameplay/facecam layout and reframing.
-- [ ] Optional original narrator voiceover.
+- [ ] Smart gameplay/facecam layouts and reframing.
+- [ ] Optional original narration with licensed/approved voice.
 - [ ] Licensed music/SFX library and rights metadata.
 - [ ] Voice/music ducking, normalization and final audio QA.
-- [ ] Campaign CTA/hashtags and platform-specific export presets.
-- [ ] Render final MP4 and attach a technical/editorial quality report.
+- [ ] Render high-quality MP4 and technical/editorial report.
+- [ ] Feed draft preview/QA evidence back to the agent for bounded revision.
 
-**Exit:** a polished short-form MP4 is generated from an approved edit plan and passes automated QA.
+**Exit:** a polished MP4 is automatically created from an agent-selected moment and passes automated QA.
 
-## M4 — private review and delivery
-- [ ] Preview finished render in the private dashboard.
-- [ ] Approve, reject, request changes or regenerate.
-- [ ] Download final MP4, captions and timeline JSON.
-- [ ] Preserve project/edit revisions for iteration.
-- [ ] Optional manual post URL and analytics notes entered by the operator.
+## M4 — private delivery and review
+- [ ] Preview finished render in private dashboard.
+- [ ] Agent-generated review summary and quality report.
+- [ ] Operator can request revisions, approve or reject.
+- [ ] Download MP4, captions and timeline JSON.
+- [ ] Preserve project/edit revisions.
 - [ ] Enforce publication disabled server-side.
 
-**Exit:** finished videos are delivered privately to the operator; nothing is published by Clipro.
+**Exit:** final videos are privately delivered to the operator; nothing is published automatically.
 
-## M5 — additional source adapters and generic editing
-- [ ] Twitch viewer-native clip workflow guidance.
-- [ ] Kick viewer-native clip workflow guidance.
+## M5 — additional sources and generic editing
+- [ ] Twitch/Kick viewer-native capture guidance.
 - [ ] YouTube Clip reference and authorized-file workflow.
 - [ ] Generic uploaded-video intake independent of streaming platform.
-- [ ] Source-range selection and chunked analysis for long videos.
-- [ ] Multi-track manual editing, captions, overlays, music/SFX and export revisions.
+- [ ] Source-range selection and chunked processing for long video.
+- [ ] Multi-track manual editing, caption/overlay editing and export revisions.
 
-**Exit:** the same private tool handles stream-derived clips and ordinary uploaded video projects.
+**Exit:** the same private tool handles stream-derived clips and ordinary uploaded videos.
 
 ## Not in scope
 - Public sign-up, multiple users, teams, invitations, roles or billing.
-- Automatic publishing to TikTok, Instagram, YouTube or any destination.
-- Automatic raw-video extraction from arbitrary public stream URLs.
+- Automatic publishing to social platforms.
+- Downloading arbitrary public stream URLs or bypassing platform restrictions.
 - Twitch Editor role for Diego unless separately authorized.
-- Unofficial download/scraping workarounds.
-- Always-on livestream monitoring in the initial manual-source workflow.
-- Making platform engagement/audience guarantees.
+- Unofficial playback extraction.
+- Always-on livestream monitoring in initial manual-source workflow.
+- Engagement/audience guarantees.
