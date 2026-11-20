@@ -1,56 +1,64 @@
 # Clipro
 
-**Clipro is a multi-streamer, multi-platform AI clipping and short-form video editing studio.**
+**Clipro is a private, single-operator AI clipping and video-editing workspace.** It is used by one operator with ChatGPT assisting the editorial workflow. It is not a public SaaS product and has no public registration, user directory, teams, invitations, or billing.
 
-It accepts native clips captured from live streams or past broadcasts, plus creator/campaign-authorized uploaded videos. It analyzes the footage, selects or improves moments, creates a fully edited short-form video, and returns it to the user for review and manual publishing.
+The first campaign is DiegoLoveless's Twitch GTA campaign, but the editing engine remains reusable for other creators, platforms, campaigns, and ordinary uploaded videos.
 
-Clipro is not a Diego-only tool. DiegoLoveless's Twitch GTA campaign is the first campaign profile used to validate the workflow.
+## Operating workflow
 
-## Product workflow
+1. The operator manually creates/downloads a permitted native clip or supplies an authorized video file.
+2. The operator uploads the source into the private Clipro workspace.
+3. Clipro probes, transcribes, analyzes and ranks candidate moments.
+4. The AI editorial workflow proposes the strongest moment and a detailed edit plan.
+5. The rendering pipeline creates a polished video with captions, motion, reframing, sound design and campaign-specific treatment.
+6. The operator reviews the preview and can request changes.
+7. The operator downloads the approved result and publishes it manually, if desired.
 
-1. Select a streamer and optional campaign/style profile.
-2. Choose source platform: Twitch, Kick or YouTube.
-3. Choose source type: live stream, past broadcast/VOD or uploaded video.
-4. Create/download a supported native clip or provide an authorized video file.
-5. Upload the source file in the browser.
-6. Clipro analyzes, selects moments, writes an edit plan, creates the video and performs quality checks.
-7. User previews, approves, downloads and publishes manually.
+ChatGPT can help select moments, shape the edit, review outputs and iterate when the operator shares footage or results. It does not silently monitor livestreams or run in the background without an active configured workflow.
 
-**No automatic publishing.** Clipro does not post videos to TikTok, Instagram, YouTube or any other social platform.
+**Publishing is deliberately out of scope.** No social account integrations, auto-posting, scheduling, or automatic engagement actions.
+
+## Privacy and access
+
+- One operator; no public sign-up or multi-user workspace model.
+- The hosted dashboard and API must be protected by a private access layer (Cloudflare Access or equivalent allowlisted identity gate).
+- Private R2 media storage; no public buckets or public media URLs.
+- Server-side secrets only; never put database, storage or Modal credentials in browser bundles.
+- Human approval is required before any finished video is considered final.
+- No publishing endpoint or publishing credentials.
 
 ## Source acquisition rules
 
-- Twitch: logged-in viewers can create clips from live streams and VODs (5–60 seconds) when channel settings allow it; they can download clips they created from Clips Manager.
-- Kick: viewers can create clips from live streams and VODs (10–180 seconds) and download clips they created.
-- YouTube: Clips are public 5–60-second references/loops, not a general MP4 export. Live Clips have DVR and archival availability limits. For custom editing, upload an authorized creator/campaign source file.
-- A public stream URL is not treated as a downloadable video file.
-- Full VOD downloads from another creator are not assumed or attempted.
-- Direct creator relay is an optional future mode, not required for the first pilot.
+- Twitch: use permitted viewer-native clips created and downloaded manually when channel settings allow it.
+- Kick: use permitted viewer-native clips created and downloaded manually when available.
+- YouTube: a Clip URL is a reference, not a downloadable MP4; custom editing requires an authorized source file.
+- A public stream URL is never treated as a downloadable video file.
+- No access-control bypass, undocumented playback extraction, or unauthorized full-VOD downloading.
 
-## Editing output
+## Editing target
 
-Target profile: 9:16, 1080x1920, with source-matched or 30 fps output where appropriate. The editor can add:
-- context-preserving hooks and story structure;
-- accurate word-synchronized captions;
-- kinetic text and campaign CTA overlays;
-- gameplay/facecam layouts and reframing;
+Default short-form output: 9:16, 1080x1920, source-matched or 30 fps where appropriate. The pipeline should support:
+- context-preserving hooks and payoff;
+- accurate word-synchronized captions and animated typography;
+- gameplay/facecam layouts and smart reframing;
 - purposeful transitions, zooms, punch-ins and motion graphics;
-- optional original narrator voiceover;
-- licensed music and sound effects;
-- audio ducking, normalization and quality checks.
+- optional original narration;
+- properly licensed music and sound effects;
+- audio ducking, normalization and technical/editorial quality checks.
 
-The editing engine is source-agnostic. The future manual timeline editor will use the same timeline project schema and renderer.
+The same timeline schema and renderer must support stream clips and ordinary uploaded videos.
 
 ## Planned stack
 
 | Layer | Technology |
 |---|---|
-| Browser UI | Next.js + Uppy |
-| Control plane | FastAPI |
-| Authentication/metadata | Supabase Auth + Postgres (planned) |
-| Media storage | Cloudflare R2 (planned) |
+| Private dashboard | Next.js + Uppy |
+| API/control plane | FastAPI |
+| Metadata | PostgreSQL (Supabase Postgres may be retained without Supabase Auth) |
+| Private access gate | Cloudflare Access or equivalent |
+| Media storage | Cloudflare R2 |
 | Cloud execution | Modal |
-| Media analysis | FFmpeg/ffprobe, PySceneDetect, faster-whisper/WhisperX, Silero VAD |
+| Analysis | FFmpeg/ffprobe, faster-whisper/WhisperX, VAD and visual sampling |
 | Editorial plan | Provider-neutral structured JSON |
 | Voiceover | Kokoro or another appropriately licensed TTS model |
 | Motion graphics | Remotion, subject to license eligibility |
@@ -59,18 +67,16 @@ The editing engine is source-agnostic. The future manual timeline editor will us
 
 ## Development status
 
+The current M1 branch contains a working foundation for browser uploads, R2 multipart handling, Postgres asset/job records and a Modal media-probe worker. Its current implementation still contains Supabase Auth and workspace-membership assumptions. Those are legacy scaffolding and must be refactored before deployment to the private single-operator model.
+
+Not yet implemented: highlight analysis, editorial decision-making, professional edit-plan generation, full rendering, finished-video review/download, and the private access-gate integration. Cloud resources have not yet been configured or verified against the operator's accounts.
+
 See [ROADMAP.md](docs/ROADMAP.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [M1 media ingestion ADR](docs/ADR_001_MEDIA_INGESTION.md), and [tooling research](docs/TOOLING_RESEARCH.md).
 
-- M1 code: browser studio, Supabase magic-link authentication, workspace migration, authenticated R2 multipart upload API, durable asset/job schema and Modal ffprobe worker are implemented on the feature branch.
-- The Python tests and Next.js typecheck/production build pass in GitHub Actions.
-- Not yet verified against live cloud accounts: R2 bucket/CORS, Supabase migration/credentials and Modal deployment/dispatch. Uploads can be stored and jobs queued; automated media probing requires Modal setup.
-- Not implemented yet: AI highlight analysis, editorial plan generation, professional rendering and review/download UI.
 - Campaign-specific rules: [DiegoLoveless GTA profile](docs/campaigns/diego-loveless-gta6.md)
 - Source policy: [Source acquisition guide](docs/INGESTION_NO_OBS.md)
 - Browser capture steps: [Twitch, Kick and YouTube](docs/SOURCE_CAPTURE_GUIDE.md)
 - Generic campaign template: [config/campaigns/template.json](config/campaigns/template.json)
-- Generic streamer profile: [config/streamers/template.json](config/streamers/template.json)
-- Streamer/brainrot style: [config/styles/streamer-brainrot.json](config/styles/streamer-brainrot.json)
 - Editing rules: [Editing style guide](docs/EDITING_STYLE_GUIDE.md)
 - Security: [Security requirements](docs/SECURITY.md)
 - Timeline schema: [packages/timeline/schema.json](packages/timeline/schema.json)
