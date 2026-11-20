@@ -50,7 +50,7 @@ Never commit secret values, paste them into chat, or place them in browser envir
 
        modal deploy infra/modal/clipro_api.py
 
-6. Copy the HTTPS URL printed for the \`fastapi_app\` web endpoint. Set it as \`NEXT_PUBLIC_CLIPRO_API_URL\` in the Next.js/Vercel environment.
+6. Copy the HTTPS URL printed for the \`fastapi_app\` web endpoint. Set it as \`CLIPRO_API_URL\` in the Next.js/Vercel environment.
 7. Set \`CLIPRO_WEB_ORIGINS\` in \`clipro-api-secrets\` to the exact web origins (for local development include \`http://localhost:3000\`; add the Vercel domain after deployment), then redeploy the API.
 8. Confirm \`/healthz\` returns \`{"status":"ok","service":"clipro-api"}\`.
 9. Deploy the Next.js app from \`apps/web\` on Vercel and configure its Supabase URL, publishable key and API URL.
