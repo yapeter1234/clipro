@@ -1,9 +1,15 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { SESSION_COOKIE, verifyOperatorSession } from "@/lib/clipro-auth";
 import UploadStudio from "@/components/upload-studio";
 import LogoutButton from "@/components/logout-button";
 
 export const dynamic = "force-dynamic";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const cookieStore = await cookies();
+  if (!verifyOperatorSession(cookieStore.get(SESSION_COOKIE)?.value)) redirect("/login");
+
   const workspaceId = "00000000-0000-4000-8000-000000000002";
   const email = "Private operator";
   const initial = "C";
