@@ -61,7 +61,10 @@ def test_create_thumbnail_uses_fixed_ffmpeg_filter(tmp_path: Path, monkeypatch) 
     output = tmp_path / "thumbnail.jpg"
     source.write_bytes(b"video")
     
+    captured = {}
+
     def fake_run(command, **kwargs):
+        captured["command"] = command
         output.write_bytes(b"jpeg")
         return Mock(returncode=0)
 
@@ -69,4 +72,5 @@ def test_create_thumbnail_uses_fixed_ffmpeg_filter(tmp_path: Path, monkeypatch) 
     create_thumbnail(source, output, duration_ms=5000)
 
     assert output.read_bytes() == b"jpeg"
-    assert "scale=640:640:force_original_aspect_ratio=decrease" in fake_run.call_args[0][0] if hasattr(fake_run, "call_args") else True
+    assert "scale=640:640:force_original_aspect_ratio=decrease" in captured["command"]
+    assert captured["command"][0] == "ffmpeg"
