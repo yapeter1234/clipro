@@ -19,7 +19,7 @@ Initial model candidate: **Qwen3.6-35B-A3B**, an open-weight multimodal model wi
 
 Clipro will preprocess long videos into bounded segments, timestamped transcripts and sampled frames. The agent uses those observations to reason about moments and calls a restricted set of editing tools. FFmpeg/Remotion perform the actual media transformations; the model does not regenerate the source footage.
 
-No Gemini/OpenAI/other hosted model API key is required for this self-hosted path. Modal GPU compute is still metered. Modal's Starter plan currently includes $30/month of compute credits, but that is a limited allowance, not unlimited free inference; usage beyond credits is billed. Modal's separately hosted Model APIs are token-billed and are not covered by those compute credits. We intend to host our own weights rather than use those paid Model APIs.
+No Gemini/OpenAI/other hosted model API key is required for this self-hosted path. Modal GPU compute is still metered. Modal compute credits and grant balances vary by account and can change; check the Modal billing dashboard for the current balance and expiration. Credits are limited, not unlimited free inference; usage beyond available credits is billed. Modal's separately hosted Model APIs are token-billed and are not covered by those compute credits. We intend to host our own weights rather than use those paid Model APIs.
 
 ## Publishing
 
