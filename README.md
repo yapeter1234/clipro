@@ -8,13 +8,13 @@ The first campaign is DiegoLoveless's Twitch GTA campaign, but the editing engin
 
 1. The operator manually creates/downloads a permitted native clip or supplies an authorized video file.
 2. The operator uploads the source into the private Clipro workspace.
-3. Clipro probes, transcribes, analyzes and ranks candidate moments.
-4. The AI editorial workflow proposes the strongest moment and a detailed edit plan.
-5. The rendering pipeline creates a polished video with captions, motion, reframing, sound design and campaign-specific treatment.
-6. The operator reviews the preview and can request changes.
+3. Clipro creates a processing pack: transcript with timestamps, audio cues, candidate ranges and visual contact sheets extracted from the source.
+4. The operator shares that pack in this ChatGPT conversation. ChatGPT is the editorial brain: it selects moments, explains the rationale and returns a versioned edit-plan JSON. No separate model API key is required for this chat-based workflow.
+5. The operator imports the edit plan into Clipro; the deterministic renderer creates the MP4 with captions, motion, reframing, sound design and campaign-specific treatment.
+6. The operator shares the preview or QA report here for editorial review and revisions.
 7. The operator downloads the approved result and publishes it manually, if desired.
 
-ChatGPT can help select moments, shape the edit, review outputs and iterate when the operator shares footage or results. It does not silently monitor livestreams or run in the background without an active configured workflow.
+ChatGPT is not callable from the deployed Vercel app using the user's ChatGPT subscription. The handoff between the app and this conversation is explicit (analysis pack into chat; edit plan back into the app). No separate generative-model API is part of the initial workflow.
 
 **Publishing is deliberately out of scope.** No social account integrations, auto-posting, scheduling, or automatic engagement actions.
 
@@ -54,12 +54,12 @@ The same timeline schema and renderer must support stream clips and ordinary upl
 |---|---|
 | Private dashboard | Next.js + Uppy |
 | API/control plane | FastAPI |
-| Metadata | PostgreSQL (Supabase Postgres may be retained without Supabase Auth) |
+| Metadata | Single-operator job manifests (database deferred unless needed) |
 | Private access gate | Cloudflare Access or equivalent |
 | Media storage | Cloudflare R2 |
 | Cloud execution | Modal |
-| Analysis | FFmpeg/ffprobe, faster-whisper/WhisperX, VAD and visual sampling |
-| Editorial plan | Provider-neutral structured JSON |
+| Analysis pack | FFmpeg/ffprobe, speech transcription, VAD/audio cues and visual contact sheets |
+| Editorial plan | ChatGPT-generated versioned JSON returned through this conversation |
 | Voiceover | Kokoro or another appropriately licensed TTS model |
 | Motion graphics | Remotion, subject to license eligibility |
 | Rendering | FFmpeg |
@@ -67,9 +67,9 @@ The same timeline schema and renderer must support stream clips and ordinary upl
 
 ## Development status
 
-The current M1 branch contains a working foundation for browser uploads, R2 multipart handling, Postgres asset/job records and a Modal media-probe worker. Its current implementation still contains Supabase Auth and workspace-membership assumptions. Those are legacy scaffolding and must be refactored before deployment to the private single-operator model.
+The current M1 branch contains browser uploads, R2 multipart handling, Postgres asset/job records and a Modal media-probe worker. It still contains Supabase Auth and workspace-membership assumptions. Those are legacy scaffolding and must be removed. Supabase is no longer a required dependency for the first private release.
 
-Not yet implemented: highlight analysis, editorial decision-making, professional edit-plan generation, full rendering, finished-video review/download, and the private access-gate integration. Cloud resources have not yet been configured or verified against the operator's accounts.
+Not yet implemented: analysis-pack generation, ChatGPT handoff/import, edit-plan validation, professional rendering, finished-video review/download and the private access gate. Cloud resources have not yet been configured or verified against the operator's accounts.
 
 See [ROADMAP.md](docs/ROADMAP.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [M1 media ingestion ADR](docs/ADR_001_MEDIA_INGESTION.md), and [tooling research](docs/TOOLING_RESEARCH.md).
 
