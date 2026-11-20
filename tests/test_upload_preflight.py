@@ -1,8 +1,17 @@
+from uuid import UUID
+
 from fastapi.testclient import TestClient
 
+from services.api.app.auth import CurrentUser, get_current_user
 from services.api.app.ingestion import MAX_UPLOAD_BYTES
 from services.api.app.main import app
 
+# These tests exercise upload metadata/rights policy, not bearer-token parsing.
+# Keep the production dependency protected and explicitly provide the single
+# operator identity to the test client.
+app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+    user_id=UUID("00000000-0000-4000-8000-000000000001")
+)
 client = TestClient(app)
 
 
