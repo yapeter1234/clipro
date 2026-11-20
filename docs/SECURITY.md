@@ -14,6 +14,17 @@ Before ingesting video, record:
 
 If authorization is absent, only use platform metadata/chat capabilities that are officially available and do not attempt to retrieve the raw video. Do not bypass login, paywalls, subscriber-only settings, DRM, geoblocks or platform access controls.
 
+## Private operator access
+
+- The dashboard is single-operator and password protected; public registration and account creation are disabled.
+- Store the operator password and session-signing secret only in the Next.js server environment.
+- Session cookies are HttpOnly, SameSite=Lax and Secure in production, with a bounded 12-hour lifetime.
+- The browser calls FastAPI only through the same-origin Next.js proxy. The proxy issues five-minute API tokens with a fixed issuer, audience and operator subject.
+- FastAPI independently validates signature, issuer, audience, expiry and the fixed operator identity. Missing or invalid tokens fail closed.
+- Keep the API-token signing secret identical in the Next.js server environment and Modal API Secret; keep the session secret exclusive to Next.js.
+- Enforce login rate limiting at the deployment/WAF layer. A per-instance in-memory limiter is not sufficient for serverless deployments.
+- Rotate signing secrets after suspected exposure; rotation invalidates outstanding sessions/API tokens.
+
 ## Credentials
 
 - Never request passwords, API secrets, stream keys or refresh tokens in a chat message or issue.

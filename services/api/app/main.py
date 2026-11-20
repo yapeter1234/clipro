@@ -1,10 +1,11 @@
 """Clipro FastAPI control-plane entrypoint."""
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .auth import CurrentUser, get_current_user
 from .database import close_pool
 from .ingestion import UploadPreflightRequest, UploadPreflightResponse, validate_upload_preflight
 from .routers.jobs import router as jobs_router
@@ -55,5 +56,8 @@ def healthz() -> dict[str, str]:
 
 
 @app.post("/api/v1/uploads/preflight", response_model=UploadPreflightResponse, tags=["uploads"])
-def upload_preflight(submission: UploadPreflightRequest) -> UploadPreflightResponse:
+def upload_preflight(
+    submission: UploadPreflightRequest,
+    _: CurrentUser = Depends(get_current_user),
+) -> UploadPreflightResponse:
     return validate_upload_preflight(submission)

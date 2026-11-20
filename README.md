@@ -28,9 +28,10 @@ Publishing is deliberately out of scope. No social account integrations, auto-po
 ## Privacy and access
 
 - One operator; no public registration or multi-user workspace model.
-- The hosted dashboard/API should have a simple private access restriction.
+- Password login issues a signed HttpOnly session cookie; the browser never receives the session-signing secret.
+- The same-origin Next.js proxy issues five-minute audience-restricted API tokens; FastAPI independently verifies them.
 - Private media storage; no public buckets or public media URLs.
-- All model, storage, Modal and other credentials remain server-side.
+- All model, storage, Modal, database and signing credentials remain server-side.
 - Human review remains available before any finished video is published.
 - No publishing endpoint or publishing credentials.
 
@@ -73,9 +74,9 @@ The same timeline schema and renderer support stream clips and ordinary uploaded
 
 ## Development status
 
-The current feature branch has browser upload, R2 multipart handling, Postgres asset/job records and a Modal media-probe worker. It still contains Supabase Auth and workspace-membership assumptions. Those are legacy scaffolding and must be removed. The initial private release does not require Supabase.
+The private-operator migration replaces Supabase magic-link authentication with a password-protected Next.js session and independently verified FastAPI API tokens. A forward-only database migration consolidates legacy assets/jobs into one fixed operator workspace. Postgres and private R2 remain temporarily for durable metadata and resumable 20 GB multipart uploads; they are not required as product identity services. The Modal Volume alternative must pass upload-recovery and privacy tests before it replaces R2.
 
-Not yet implemented: private single-operator refactor, self-hosted multimodal model deployment, video agent, highlight-selection/tool loop, professional rendering, output review/download and end-to-end cloud integration.
+The first private-auth code path is now in the feature branch but still needs environment configuration, migration and deployment testing. Not yet implemented: self-hosted multimodal model deployment, video agent, highlight-selection/tool loop, professional rendering, output review/download and end-to-end cloud integration.
 
 See [ROADMAP.md](docs/ROADMAP.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [M1 media ingestion ADR](docs/ADR_001_MEDIA_INGESTION.md), and [tooling research](docs/TOOLING_RESEARCH.md).
 

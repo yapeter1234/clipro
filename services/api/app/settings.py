@@ -13,8 +13,9 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    supabase_url: str | None = None
-    supabase_jwt_audience: str = "authenticated"
+    clipro_api_token_secret: str | None = None
+    clipro_api_token_issuer: str = "clipro-web"
+    clipro_api_token_audience: str = "clipro-api"
     database_url: str | None = None
     database_ssl: bool = True
 
