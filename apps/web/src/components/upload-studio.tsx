@@ -20,6 +20,7 @@ type SourceMetadata = {
   permission_confirmed: boolean;
 };
 type UploadSession = { upload_id: string; key: string; asset_id: string };
+type ProcessingJob = { job_id: string; asset_id: string; status: string; progress: number; dispatch_error?: string | null; error_message?: string | null; result?: Record<string, unknown> | null };
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 * 1024;
 const API_BASE = (process.env.NEXT_PUBLIC_CLIPRO_API_URL ?? "").replace(/\/$/, "");
@@ -65,9 +66,9 @@ function formatBytes(bytes: number) {
 export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
   const [platform, setPlatform] = useState<Platform>("twitch");
   const [sourceKind, setSourceKind] = useState<SourceKind>("live_stream");
-  const [streamerId, setStreamerId] = useState("diegoloveless");
-  const [campaignId, setCampaignId] = useState("diego-gta");
-  const [sourceUrl, setSourceUrl] = useState("https://www.twitch.tv/diegoloveless");
+  const [streamerId, setStreamerId] = useState("");
+  const [campaignId, setCampaignId] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [rightsStatus, setRightsStatus] = useState<RightsStatus>("pending_review");
   const [permissionConfirmed, setPermissionConfirmed] = useState(false);
   const [metadataReady, setMetadataReady] = useState(false);
@@ -78,9 +79,10 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
   const [assetId, setAssetId] = useState("");
   const [uploading, setUploading] = useState(false);
   const [needsFinalize, setNeedsFinalize] = useState(false);
+  const [processingJob, setProcessingJob] = useState<ProcessingJob | null>(null);
   const metadataRef = useRef<SourceMetadata>({
-    platform: "twitch", source_kind: "live_stream", streamer_id: "diegoloveless",
-    campaign_id: "diego-gta", source_url: "https://www.twitch.tv/diegoloveless",
+    platform: "twitch", source_kind: "live_stream", streamer_id: "",
+    campaign_id: "", source_url: "",
     rights_status: "pending_review", permission_confirmed: false,
   });
   const sessionRef = useRef<UploadSession | null>(null);
@@ -160,16 +162,76 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
 
   async function finalize(session: UploadSession) {
     const token = await getAccessToken();
-    const result = await apiRequest<{ asset_id: string; status: string }>(
-      "/api/v1/uploads/finalize", token, { uploadId: session.upload_id, key: session.key },
-    );
+    const result = await apiRequest<{
+      asset_id: string;
+      status: string;
+      job_id?: string;
+      processing_status?: string;
+      dispatch_started?: boolean;
+      dispatch_error?: string | null;
+    }>("/api/v1/uploads/finalize", token, {
+      uploadId: session.upload_id,
+      key: session.key,
+    });
+
     setAssetId(result.asset_id);
+    if (result.job_id) {
+      setProcessingJob({
+        job_id: result.job_id,
+        asset_id: result.asset_id,
+        status: result.processing_status ?? "queued",
+        progress: 0,
+        dispatch_error: result.dispatch_error,
+      });
+    }
     setNeedsFinalize(false);
     setUploading(false);
     setProgress(100);
-    setStatusMessage("Source uploaded and recorded. Media validation is the next step.");
+    setStatusMessage(
+      result.dispatch_started
+        ? "Source stored. Media validation has started on Modal."
+        : "Source stored. The media-probe job is queued until the Modal worker is enabled.",
+    );
     sessionRef.current = null;
     uploadedToR2Ref.current = false;
+  }
+
+  async function refreshProcessingStatus() {
+    if (!processingJob) return;
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(API_BASE + "/api/v1/jobs/" + processingJob.job_id, {
+        headers: { Authorization: "Bearer " + token },
+      });
+      if (!response.ok) throw new Error("Could not refresh processing status.");
+      const job = await response.json() as ProcessingJob;
+      setProcessingJob(job);
+      setStatusMessage(
+        job.status === "succeeded"
+          ? "Media validated successfully. The source is ready for AI analysis."
+          : job.status === "failed"
+            ? job.error_message || "Media validation failed."
+            : job.dispatch_error || ("Media validation status: " + job.status + "."),
+      );
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Could not refresh processing status.");
+    }
+  }
+
+  async function retryProcessing() {
+    if (!processingJob) return;
+    setStatusMessage("Requesting Modal media validation…");
+    try {
+      const job = await apiRequest<ProcessingJob>(
+        "/api/v1/jobs/" + processingJob.job_id + "/dispatch",
+        await getAccessToken(),
+        {},
+      );
+      setProcessingJob(job);
+      setStatusMessage("Media-probe job dispatched to Modal.");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Could not dispatch the media-probe job.");
+    }
   }
 
   async function startUpload() {
@@ -272,7 +334,24 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
             </div>
           )}
           {statusMessage && <div className="upload-status">{statusMessage}</div>}
-          {assetId && <div className="asset-result"><span className="asset-check">✓</span><div><strong>{needsFinalize ? "Transfer complete · verifying asset" : "Source stored successfully"}</strong><small>Asset ID: {assetId}</small></div></div>}
+          {assetId && (
+            <div className="asset-result">
+              <span className="asset-check">✓</span>
+              <div className="asset-result-copy">
+                <strong>{needsFinalize ? "Transfer complete · verifying asset" : processingJob?.status === "succeeded" ? "Source validated and ready" : "Source stored successfully"}</strong>
+                <small>Asset ID: {assetId}</small>
+                {processingJob && <small>Media probe: {processingJob.status}{processingJob.progress > 0 ? " · " + processingJob.progress + "%" : ""}</small>}
+              </div>
+              {processingJob && (
+                <div className="asset-actions">
+                  <button type="button" onClick={refreshProcessingStatus}>Refresh</button>
+                  {processingJob.status === "queued" && processingJob.dispatch_error && (
+                    <button type="button" onClick={retryProcessing}>Retry processing</button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </section>
       </div>
       <aside className="guide-column">
@@ -280,7 +359,7 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
           <div className="guide-step"><span>01</span><div><strong>Create or select the source</strong><p>{platform === "kick" ? "Use Kick's native clip tool on a live stream or past broadcast." : youtube ? "Use a source file supplied by the creator or campaign." : platform === "upload" ? "Choose a video you own or are authorized to edit." : "Create a Twitch clip while live or from a VOD, when clipping is enabled."}</p></div></div>
           <div className="guide-step"><span>02</span><div><strong>Get the video file</strong><p>{platform === "twitch" ? "Download a clip you created from Twitch Clips Manager." : platform === "kick" ? "Download a clip you created from its Kick clip page." : "Select the authorized source file."}</p></div></div>
           <div className="guide-step"><span>03</span><div><strong>Upload it here</strong><p>Clipro stores the file privately and validates actual media before AI analysis starts.</p></div></div>
-          <a className="guide-link" href={platform === "kick" ? "https://kick.com" : youtube ? "https://www.youtube.com" : "https://www.twitch.tv/diegoloveless/videos"} target="_blank" rel="noreferrer">Open {platform === "kick" ? "Kick" : youtube ? "YouTube" : "Twitch"} <span>↗</span></a>
+          <a className="guide-link" href={platform === "kick" ? "https://kick.com" : youtube ? "https://www.youtube.com" : "https://www.twitch.tv"} target="_blank" rel="noreferrer">Open {platform === "kick" ? "Kick" : youtube ? "YouTube" : "Twitch"} <span>↗</span></a>
         </section>
         <section className="pipeline-card"><div className="guide-label">WHAT HAPPENS NEXT</div><h3>From footage to finished edit</h3>
           <div className="pipeline-item active"><span className="pipeline-dot" /><div><strong>Source intake</strong><small>Metadata and original video</small></div><em>NOW</em></div>
