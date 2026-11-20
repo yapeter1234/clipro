@@ -12,17 +12,22 @@ function secret(name: string): string {
 }
 
 function signClaims(claims: Claims, key: string): string {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" }), "utf8").toString("base64url");
   const payload = Buffer.from(JSON.stringify(claims), "utf8").toString("base64url");
-  const signature = createHmac("sha256", key).update(payload).digest("base64url");
-  return payload + "." + signature;
+  const signingInput = header + "." + payload;
+  const signature = createHmac("sha256", key).update(signingInput).digest("base64url");
+  return signingInput + "." + signature;
 }
 
 function verifyClaims(token: string, key: string, audience: string, subject: string): Claims | null {
   try {
     const parts = token.split(".");
-    if (parts.length !== 2) return null;
-    const [payload, signature] = parts;
-    const expected = createHmac("sha256", key).update(payload).digest();
+    if (parts.length !== 3) return null;
+    const [encodedHeader, payload, signature] = parts;
+    const header = JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8")) as { alg?: string; typ?: string };
+    if (header.alg !== "HS256" || header.typ !== "JWT") return null;
+    const signingInput = encodedHeader + "." + payload;
+    const expected = createHmac("sha256", key).update(signingInput).digest();
     const supplied = Buffer.from(signature, "base64url");
     if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return null;
     const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Claims;
