@@ -2,151 +2,131 @@
 
 ## Product scope
 
-Clipro is a multi-streamer, multi-platform AI clipping and short-form video editing studio. It is not hard-coded to Diego or to one campaign.
+Clipro is a private, single-operator AI clipping and video-editing workspace. There is one operator and no public registration, multi-user workspaces, invitations, roles, billing or public creator-facing accounts. ChatGPT assists the operator with editorial decisions and iteration; the configured Clipro pipeline performs repeatable media processing and rendering.
 
-A job can start from:
-- a native clip captured from a live stream;
-- a native clip captured from a past broadcast/VOD;
-- a creator/campaign-authorized uploaded video file;
-- a future creator-authorized continuous media feed.
-
-The first pilot is DiegoLoveless's Twitch GTA campaign, using viewer-created clips downloaded manually. The same editing engine, timeline schema and browser review flow serve all other creators and campaigns.
+The first campaign is DiegoLoveless's Twitch GTA campaign. The system must still support other creator profiles, campaigns, platforms and generic uploaded videos without changing the editing engine.
 
 ## Core principles
 
+- One private operator; no public SaaS account model.
+- Hosted UI/API protected by an allowlisted private access layer (Cloudflare Access or equivalent).
 - Platform-native capture and editing are separate.
 - Public stream URLs/chat access are not raw media downloads.
 - Use official viewer capture tools or creator-authorized media files.
 - Never bypass access controls or use undocumented playback extraction.
-- A user must explicitly supply/authorize the source file before processing.
-- Clipro never publishes in the MVP. Rendered clips are downloaded and posted by the user.
-- Source profiles, campaign rules, and visual style profiles are independent and configurable.
-- Live clips and archived-video clips use the same editor/render pipeline.
+- A source file must be explicitly supplied before processing.
+- Clipro never publishes; finished videos are downloaded and posted manually.
+- Creator, campaign and style profiles are data, not hard-coded editor logic.
+- Live clips, VOD excerpts and ordinary uploaded videos use the same editor/render pipeline.
 
 ## System boundaries
 
-### Browser app
+### Private browser app
 
-- Create/select streamer profiles.
-- Create/select campaign profiles.
-- Choose platform (Twitch/Kick/YouTube).
-- Choose source type (live stream/past broadcast/uploaded video).
-- Display platform-specific clip/download instructions.
-- Upload source files using a secure browser upload flow.
-- Show upload progress, media metadata, clip range selector and analysis job status.
-- Preview automatically edited results.
-- Approve/reject/regenerate and download MP4, captions and timeline JSON.
-- Later: multi-track manual editing.
-- After user posts manually, record URL and analytics evidence.
-- No publishing integration in the MVP.
+- No sign-up, invite, team or user-management screens.
+- One default private library and one operator-owned project history.
+- Choose/create streamer, campaign and style profiles.
+- Choose platform (Twitch/Kick/YouTube) and source type.
+- Display supported manual capture/download instructions.
+- Upload source files with resumable multipart transfer.
+- Show source preview, metadata, transcript, candidate moments and analysis status.
+- Show the proposed edit plan and allow operator-directed revisions.
+- Preview, approve/reject/regenerate and download final MP4, captions and timeline JSON.
+- Later: multi-track manual editing and post-publish metrics entered by the operator.
+- No social publishing integration.
+
+### Private access layer
+
+The browser application and API must be inaccessible to anonymous internet users. Prefer Cloudflare Access with an allowlist containing only the operator's identity. Protect both the web app and API hostname. The API must verify the access-layer identity assertion (for example, Cloudflare Access JWT) or use an equivalent server-side authentication mechanism; CORS alone is not authentication. Do not simply remove API authentication or expose a shared secret in browser JavaScript.
 
 ### Control plane
 
-FastAPI owns authentication, workspaces, streamer/campaign/style profiles, source metadata, uploads, job lifecycle, rendering status, approvals and post-publish metrics.
+FastAPI owns source validation, media metadata, uploads, job lifecycle, editorial-plan state, rendering status, approvals and download authorization. Use a single-operator data model: no workspace membership joins or user IDs are needed for ordinary asset ownership. Keep a server-generated private project/library identifier if useful for grouping assets.
 
 ### Data plane
 
-Modal workers own media probing, proxy generation, ASR/VAD, highlight detection, editorial planning, TTS, motion graphics and rendering.
+Modal workers own media probing, proxy generation, ASR/VAD, visual sampling, highlight detection, editorial planning, TTS, motion graphics and rendering. Workers receive exact server-selected object keys and job IDs; never fetch arbitrary user-provided URLs.
 
-For long VOD files, use a source-range selector and chunked analysis; never load the entire multi-hour video into RAM. For native clips, process the complete short file.
+For long VOD files, use chunked analysis and low-resolution proxy sampling. Never load an entire multi-hour source into RAM.
 
 ## Source abstraction
 
-Define a source object with:
-- source_id;
-- platform;
-- creator/channel;
-- source_kind: live_stream, past_broadcast, uploaded_video;
-- acquisition_mode;
-- source_url/clip_url (reference only);
-- file asset ID (required to edit);
-- source duration, dimensions, frame rate and audio streams;
-- campaign/style profile IDs;
-- authorization evidence/notes;
+A source record should include:
+- source/asset ID;
+- platform and creator/channel;
+- source kind: live_stream, past_broadcast or uploaded_video;
+- acquisition mode;
+- source URL/clip URL as reference only;
+- private file asset ID (required to edit);
+- duration, dimensions, frame rate and audio streams;
+- optional campaign/style profile IDs;
+- authorization basis/notes;
 - checksum and retention policy.
 
 Acquisition modes:
-1. `viewer_native_clip_manual_download`: user creates and downloads a native Twitch or Kick clip and uploads it.
+1. `viewer_native_clip_manual_download`: operator creates and downloads a native Twitch or Kick clip and uploads it.
 2. `authorized_source_file`: creator/campaign supplies a video or excerpt.
 3. `youtube_clip_reference`: stores a YouTube Clip URL only; no raw media processing until an authorized source file is uploaded.
-4. `creator_relay`: future optional RTMPS/SRT creator-owned feed.
-5. `editor_api`: optional future Twitch Editor integration for channels that explicitly grant it; disabled for Diego.
-6. `unsupported`: no source file or permitted acquisition route.
+4. `creator_relay`: future optional creator-owned RTMPS/SRT feed.
+5. `unsupported`: no source file or permitted acquisition route.
 
 The renderer accepts files/assets, not arbitrary platform URLs. Arbitrary URL fetching is disabled.
 
 ## Platform source handling
 
 ### Twitch
-Logged-in viewers can create clips from live streams and VODs when channel clip settings permit and the viewer is not restricted. Clips are 5–60 seconds. A viewer can download clips they created from Clips Manager. Diego's job uses this manual workflow. Editor-only Create Clip From VOD/Get Clips Download endpoints are not invoked.
+Use permitted viewer-native clips created and downloaded manually when channel settings allow. Do not assume Editor permissions or invoke Editor-only APIs for the current campaign.
 
 ### Kick
-Logged-in viewers can create clips from live streams and VODs when enabled. Clips are 10–180 seconds; viewers can download clips they created. Full VOD downloads are available to the channel owner only, so the app must not download another creator's VOD.
+Use permitted viewer-native clips created and downloaded manually when available. Do not assume channel-owner VOD download privileges.
 
 ### YouTube
-YouTube Clips are shareable 5–60-second excerpts, not an MP4 download endpoint for the Clipro renderer. Live clipping requires eligible DVR/broadcast conditions, and the clip may not be playable until the archive is processed. Custom editing requires an authorized video file from the creator/campaign.
-
-### Future direct feeds
-A creator may optionally provide an authorized second output into secure RTMPS/SRT ingress (MediaMTX). This is not required by the current user or Diego campaign.
+A YouTube Clip URL is a reference, not a general MP4 download endpoint. Custom editing requires an authorized video file.
 
 ## AI editing pipeline
 
-1. Probe media, inspect source game/category metadata if present.
-2. For full uploaded VODs, scan in chunks and extract candidate ranges using audio, transcript, chat if legitimately available, and low-rate visual signals.
-3. For short native clips, analyze the complete clip.
-4. Apply campaign gate: platform, game/topic, creator visibility, source type and prohibited content.
-5. Analyze the narrative and create a structured edit plan.
-6. Generate accurate captions, optional original narrator script/TTS, licensed music/SFX, hooks, CTA, transitions, motion and reframe.
-7. Render with the reusable timeline engine.
-8. Run technical and campaign QA.
-9. Present the finished result for manual approval/download.
+1. Probe the source and create a safe low-resolution proxy.
+2. Transcribe speech with word-level timestamps and inspect audio/visual signals.
+3. For long sources, scan in chunks and rank candidate moments; for short clips, inspect the full context.
+4. Apply campaign/style constraints (creator, game/topic, prohibited content, CTA, duration and format).
+5. Select the strongest moment(s), explain the editorial rationale and produce a structured edit plan.
+6. Generate accurate captions, optional original narration, licensed music/SFX, hooks, transitions, motion and reframing.
+7. Render using the reusable timeline engine.
+8. Run technical, caption, audio and campaign QA.
+9. Present the result for operator review and download.
 
-AI must never generate fake quotes or alter chronology to misrepresent what happened. For Diego, never make the creator look bad.
+Never invent quotes, fake reactions or alter chronology to misrepresent events. For Diego, never make the creator look bad; prioritize GTA speedrun highlights, funny moments and genuine reactions.
 
 ## Campaign profiles
 
-Campaign profiles are data, not application constants. A profile can define:
-- creator/channel and allowed source platform(s);
-- source types and date windows;
-- allowed game/franchise or topic;
-- clip must-show rules;
-- required CTA;
-- caption language, hashtags and disclosures;
-- content style and restrictions;
-- output duration/aspect ratio;
-- likes-visible, post lifespan and post-publish analytics targets;
-- reference videos/assets;
-- duplicate/reuse limits.
+Campaign profiles are configurable data and can define creator/channel, allowed platforms and source types, date windows, game/topic, must-show rules, CTA, caption language, hashtags, editing style, duration/aspect ratio, retention targets, reference assets and duplicate/reuse limits.
 
-The Diego profile is one instance. Other Twitch/Kick/YouTube creators get their own profiles and cannot inherit Diego-specific rules.
+Diego's GTA campaign is the first preset, not a global hard-coded rule. Other campaigns must not inherit Diego-specific restrictions.
 
 ## Timeline and rendering
 
-Use the versioned schema in `packages/timeline/schema.json`. Remotion creates reusable compositions (animated captions, overlays, motion graphics, transitions, layouts and end cards); FFmpeg handles probing, trimming, composition inputs, audio mixing and final encoding.
+Use the versioned schema in `packages/timeline/schema.json`. Remotion creates reusable compositions (animated captions, overlays, motion graphics, transitions, layouts and end cards); FFmpeg handles probing, trimming, composition inputs, audio mixing and final encoding. Verify Remotion license eligibility for the intended private/commercial use before production deployment.
 
-The same timeline renderer serves native clips, uploaded VOD excerpts and future manually arranged video projects.
-
-## Post-publish metrics (user-entered initially)
-
-Clipro does not publish. It can track a manually entered post URL, date, likes-visible confirmation, 30-day minimum-live reminder, views, likes, comments, shares, engagement rate and Tier 1 audience share. Analytics can only be marked verified when the user supplies platform analytics evidence or a supported official analytics integration exists.
+The same renderer serves stream clips, uploaded VOD excerpts and ordinary manual video projects.
 
 ## Storage and security
 
-- Media stored outside relational DB, referenced by asset ID/checksum.
-- Uploads use short-lived signed URLs, file limits, type probing and workspace access checks.
-- Delete/expire source and rejected output files by configurable TTL.
+- Store media in private object storage; keep only metadata and object keys in Postgres.
+- Use short-lived upload/download URLs and server-generated object keys.
+- Protect web app and API with a real private access layer; CORS is not access control.
+- Verify the access-layer identity server-side on every API route.
+- Never expose database, R2 or Modal credentials in the browser.
 - Treat transcripts, chat, titles and comments as untrusted data.
-- Model-generated timelines validated against JSON Schema and an effect allowlist.
+- Validate model-generated timelines against JSON Schema and an effect allowlist.
 - Never interpolate untrusted text into shell commands.
-- Creator/streamer OAuth tokens remain server-side in secrets.
-- No stream key or creator password is requested.
-- Human approval is required for final acceptance; publishing functionality is absent.
+- Do not request platform passwords, stream keys or credentials.
+- Require explicit operator review; publishing functionality is absent.
+- Apply configurable retention and cleanup for source, proxy and rejected output files.
 
 ## Cost strategy
 
-- Short native clips first (Twitch/Kick), then full VOD analysis.
-- For long videos, use chunked proxy analysis and low-resolution frame sampling.
-- CPU for media probe, initial segmentation and simple transforms; GPU only for selected AI tasks.
-- Use local/open-weight ASR and TTS when quality is acceptable.
-- Display estimated Modal compute, storage and egress.
-- No always-on monitoring by default in manual-capture mode.
+- Start with short native clips; add full VOD chunking after the short-clip pipeline is reliable.
+- Use low-resolution proxy analysis and sparse visual sampling before expensive high-quality rendering.
+- Use CPU for probe/segmentation/simple transforms; GPU only where it materially improves quality or throughput.
+- Use appropriately licensed local/open-weight ASR and TTS where quality is acceptable.
+- No always-on stream monitoring in the manual-capture workflow.
