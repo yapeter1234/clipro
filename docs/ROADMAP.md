@@ -21,19 +21,17 @@
 
 **Exit:** operator uploads a permitted video; its metadata, thumbnail and private asset state are validated and visible.
 
-## M2 — video-understanding agent
-- [ ] Integrate a provider-neutral video-model adapter, initially Gemini 3.8 Flash.
-- [ ] Support server-side upload of video to Gemini Files API (free tier currently documents 2 GB max) and poll processing state.
-- [ ] Add local transcript, word timestamps, audio activity, scene-change and motion signals.
-- [ ] Use agentic video navigation for long VODs; targeted dense frame inspection for fast gameplay.
-- [ ] Generate ranked highlight candidates with exact start/end times, context, payoff, rationale and confidence.
-- [ ] Apply campaign constraints (creator safety, GTA-only, allowed source types, CTA, hashtags, content bans).
-- [ ] Produce strictly schema-valid timeline/edit-plan JSON.
-- [ ] Add bounded tool-calling for candidate preview and evidence inspection.
-- [ ] Add quota-aware retries, model fallback and a clear free-tier quota error state.
-- [ ] Document the free-tier data-use trade-off and never upload confidential footage to unpaid API tiers.
+## M2 — Modal-hosted video agent
+- [ ] Deploy a provider-neutral model adapter on Modal GPUs.
+- [ ] Test Qwen3.6-35B-A3B with a compatible vLLM/SGLang serving version; verify model license, video input and tool-calling paths.
+- [ ] Benchmark a smaller/quantized fallback against the larger candidate using real gameplay clips.
+- [ ] Add timestamped transcript, VAD/audio cues, scene-change and motion signals.
+- [ ] Add bounded long-video segmentation and high-density candidate frame extraction.
+- [ ] Implement the agent tool loop: inspect ranges, compare context, rank moments and emit validated edit-plan JSON.
+- [ ] Add quota/compute-budget-aware retries, concurrency limits and scale-to-zero GPU operation.
+- [ ] Keep inference private to Modal; do not require a Google/OpenAI model API key.
 
-**Exit:** after upload, the agent inspects the source video itself, finds the best moment(s), explains selection and emits an executable edit plan.
+**Exit:** after an upload, the Modal-hosted agent actually inspects source video evidence, finds the best moments, explains selection and emits an executable edit plan.
 
 ## M3 — professional editing and rendering
 - [ ] Execute validated agent edit plans using FFmpeg and Remotion.
@@ -41,7 +39,7 @@
 - [ ] Accurate animated word-synchronized captions.
 - [ ] Purposeful transitions, zooms, punch-ins and motion graphics.
 - [ ] Smart gameplay/facecam layouts and reframing.
-- [ ] Optional original narration with licensed/approved voice.
+- [ ] Optional original narration using an appropriately licensed local/hosted voice model.
 - [ ] Licensed music/SFX library and rights metadata.
 - [ ] Voice/music ducking, normalization and final audio QA.
 - [ ] Render high-quality MP4 and technical/editorial report.
