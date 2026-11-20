@@ -19,7 +19,8 @@ type SourceMetadata = {
   permission_confirmed: boolean;
 };
 type UploadSession = { upload_id: string; key: string; asset_id: string };
-type ProcessingJob = { job_id: string; asset_id: string; status: string; progress: number; dispatch_error?: string | null; error_message?: string | null; result?: Record<string, unknown> | null };
+type HighlightCandidate = { start_ms: number; end_ms: number; duration_ms: number; title: string; hook: string; rationale: string; score: number };
+type ProcessingJob = { job_id: string; asset_id: string; job_type?: string; status: string; progress: number; dispatch_error?: string | null; error_message?: string | null; result?: { highlights?: HighlightCandidate[]; transcript?: { start_ms: number; end_ms: number; text: string }[]; [key: string]: unknown } | null };
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024 * 1024;
 async function apiRequest<T>(path: string, body?: unknown, method: "GET" | "POST" = "POST"): Promise<T> {
@@ -71,6 +72,7 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
   const [uploading, setUploading] = useState(false);
   const [needsFinalize, setNeedsFinalize] = useState(false);
   const [processingJob, setProcessingJob] = useState<ProcessingJob | null>(null);
+  const [startingAnalysis, setStartingAnalysis] = useState(false);
   const metadataRef = useRef<SourceMetadata>({
     platform: "twitch", source_kind: "live_stream", streamer_id: "",
     campaign_id: "", source_url: "",
@@ -185,6 +187,21 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
     uploadedToR2Ref.current = false;
   }
 
+  async function startAnalysis() {
+    if (!assetId || startingAnalysis) return;
+    setStartingAnalysis(true);
+    setStatusMessage("Starting Modal AI analysis. It will transcribe the audio and inspect sampled video frames…");
+    try {
+      const job = await apiRequest<ProcessingJob>("/api/v1/jobs/assets/" + assetId + "/analyze", {});
+      setProcessingJob(job);
+      setStatusMessage(job.dispatch_error || "AI analysis dispatched to Modal. Keep this page open while it processes.");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Could not start AI analysis.");
+    } finally {
+      setStartingAnalysis(false);
+    }
+  }
+
   async function refreshProcessingStatus() {
     if (!processingJob) return;
     try {
@@ -192,10 +209,12 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
       setProcessingJob(job);
       setStatusMessage(
         job.status === "succeeded"
-          ? "Media validated successfully. The source is ready for AI analysis."
+          ? job.job_type === "highlight_analysis"
+            ? "AI analysis complete. Review the ranked moments below."
+            : "Media validated successfully. The source is ready for AI analysis."
           : job.status === "failed"
-            ? job.error_message || "Media validation failed."
-            : job.dispatch_error || ("Media validation status: " + job.status + "."),
+            ? job.error_message || "Processing failed."
+            : job.dispatch_error || ("Processing status: " + job.status + "."),
       );
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Could not refresh processing status.");
@@ -204,14 +223,14 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
 
   async function retryProcessing() {
     if (!processingJob) return;
-    setStatusMessage("Requesting Modal media validation…");
+    setStatusMessage("Requesting Modal processing retry…");
     try {
       const job = await apiRequest<ProcessingJob>(
         "/api/v1/jobs/" + processingJob.job_id + "/dispatch",
         {},
       );
       setProcessingJob(job);
-      setStatusMessage("Media-probe job dispatched to Modal.");
+      setStatusMessage("Processing job dispatched to Modal.");
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : "Could not dispatch the media-probe job.");
     }
@@ -272,6 +291,16 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
     }
   }
 
+  useEffect(() => {
+    if (!processingJob || !["queued", "running"].includes(processingJob.status) || processingJob.dispatch_error) return;
+    const timer = window.setInterval(() => {
+      apiRequest<ProcessingJob>("/api/v1/jobs/" + processingJob.job_id, undefined, "GET")
+        .then(setProcessingJob)
+        .catch(() => undefined);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [processingJob?.job_id, processingJob?.status, processingJob?.dispatch_error]);
+
   const youtube = platform === "youtube";
   return (
     <div className="studio-grid" id="new-upload">
@@ -322,16 +351,37 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
               <div className="asset-result-copy">
                 <strong>{needsFinalize ? "Transfer complete · verifying asset" : processingJob?.status === "succeeded" ? "Source validated and ready" : "Source stored successfully"}</strong>
                 <small>Asset ID: {assetId}</small>
-                {processingJob && <small>Media probe: {processingJob.status}{processingJob.progress > 0 ? " · " + processingJob.progress + "%" : ""}</small>}
+                {processingJob && <small>{processingJob.job_type === "highlight_analysis" ? "AI analysis" : "Media validation"}: {processingJob.status}{processingJob.progress > 0 ? " · " + processingJob.progress + "%" : ""}</small>}
               </div>
               {processingJob && (
                 <div className="asset-actions">
                   <button type="button" onClick={refreshProcessingStatus}>Refresh</button>
-                  {processingJob.status === "queued" && processingJob.dispatch_error && (
+                  {processingJob.dispatch_error && processingJob.status !== "succeeded" && (
                     <button type="button" onClick={retryProcessing}>Retry processing</button>
                   )}
                 </div>
               )}
+            </div>
+          )}
+          {processingJob?.job_type !== "highlight_analysis" && processingJob?.status === "succeeded" && (
+            <div className="analysis-start">
+              <div><strong>Ready to find the best moments?</strong><small>Modal will transcribe the audio and inspect the video with an open-weight vision model.</small></div>
+              <button className="primary-button" type="button" onClick={startAnalysis} disabled={startingAnalysis}>
+                {startingAnalysis ? "Starting…" : "Find highlights"} <span>→</span>
+              </button>
+            </div>
+          )}
+          {processingJob?.job_type === "highlight_analysis" && processingJob.status === "succeeded" && (
+            <div className="analysis-results">
+              <div className="analysis-results-heading"><strong>AI-selected moments</strong><span>{processingJob.result?.highlights?.length ?? 0} candidates</span></div>
+              {(processingJob.result?.highlights ?? []).map((highlight, index) => (
+                <article className="highlight-card" key={highlight.start_ms}>
+                  <div className="highlight-card-top"><span>#{index + 1} · {Math.floor(highlight.start_ms / 60000)}:{String(Math.floor((highlight.start_ms % 60000) / 1000)).padStart(2, "0")} – {Math.floor(highlight.end_ms / 60000)}:{String(Math.floor((highlight.end_ms % 60000) / 1000)).padStart(2, "0")}</span><strong>{highlight.score.toFixed(1)}/10</strong></div>
+                  <h4>{highlight.title}</h4>
+                  {highlight.hook && <p>{highlight.hook}</p>}
+                  {highlight.rationale && <small>{highlight.rationale}</small>}
+                </article>
+              ))}
             </div>
           )}
         </section>

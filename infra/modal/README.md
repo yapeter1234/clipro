@@ -66,7 +66,7 @@ The API can be deployed before the worker with dispatch disabled. Finalizing an 
 - Retries: one retry for transient infrastructure failures
 - Max containers: 2
 
-The function downloads only the exact private R2 object associated with an asset and workspace. It runs ffprobe, computes SHA-256, creates a thumbnail and writes media metadata/job status to Postgres. It never downloads platform URLs or public VODs.
+The probe function downloads the exact private R2 object, runs ffprobe, computes SHA-256 and creates a thumbnail. The analysis function uses faster-whisper small for local transcription and Qwen2.5-VL-3B-Instruct on a T4 GPU to inspect sampled frames and transcript, returning ranked highlight timestamps. Neither function downloads platform URLs or public VODs.
 
 ## API: \`clipro-api\`
 
