@@ -37,7 +37,7 @@ image = (
     .add_local_python_source("services")
 )
 analysis_image = image.pip_install(
-    "torch>=2.5,<3", "transformers>=4.49,<5", "accelerate>=1.2,<2",
+    "torch>=2.6,<2.7", "transformers>=4.51,<4.52", "accelerate>=1.2,<2",
     "qwen-vl-utils>=0.0.10", "Pillow>=10,<12", "faster-whisper>=1.1,<2",
 )
 
