@@ -15,28 +15,27 @@
 - [x] R2 multipart orchestration and server-side object verification.
 - [x] Durable asset/job records and Modal media-probe worker.
 - [ ] Remove Supabase Auth, magic-link sign-in, user IDs, workspace tables/membership joins and multi-user RLS assumptions.
-- [ ] Add a private access gate (prefer Cloudflare Access allowlist) for both dashboard and API; verify identity server-side.
-- [ ] Replace workspace-scoped ownership with a single private library/project scope.
-- [ ] Keep private storage, short-lived signed upload/download URLs and server-generated object keys.
-- [ ] Configure and verify R2, Postgres, Modal and the access gate against real cloud accounts.
+- [ ] Defer Supabase/Postgres for the first private release; persist minimal asset/job manifests in the existing private storage layer unless a database proves necessary.
+- [ ] Use a simple single-operator access password for the hosted dashboard/API (never a browser-embedded storage credential).
+- [ ] Keep R2 private, with short-lived upload/download URLs and server-generated object keys.
+- [ ] Configure and verify R2 and Modal against the operator's accounts.
 - [ ] Add asset preview/download and safe cleanup/retention.
 
 **Exit:** only the allowlisted operator can open the dashboard/API, upload a permitted source, validate it in Modal and see the asset ready for analysis. No public registration exists.
 
 ## M2 — analysis and highlight selection
-- [ ] Transcribe short clips with word-level timestamps.
-- [ ] Chunk and analyze long authorized videos.
-- [ ] Detect candidate moments using speech, audio energy/VAD and visual sampling.
-- [ ] Rank moments by context, reaction, humor, payoff and campaign fit.
-- [ ] Detect duplicates/reused moments and low-quality segments.
-- [ ] Apply creator/game/topic campaign compliance gates.
-- [ ] Return ranked candidate moments with timestamps, rationale and confidence.
-- [ ] Provide an operator review/selection step before rendering.
+- [ ] Transcribe clips with word-level timestamps and produce scene/audio analysis.
+- [ ] Chunk long authorized videos and generate visual contact sheets.
+- [ ] Build a portable analysis pack (transcript, candidate ranges, key frames, metadata and campaign brief).
+- [ ] Import analysis packs into this ChatGPT conversation for editorial selection and reasoning.
+- [ ] Generate a versioned edit-plan JSON in ChatGPT; no separate generative-model API key is required.
+- [ ] Validate and import the ChatGPT edit plan back into Clipro.
+- [ ] Provide operator review/selection before rendering.
 
-**Exit:** Clipro recommends the strongest moments from a supplied source and explains why they are worth editing.
+**Exit:** Clipro creates an analysis pack that ChatGPT can use to select the strongest moments and return a validated edit plan. The explicit chat handoff replaces a separate LLM API integration in the initial release.
 
 ## M3 — professional editing and rendering
-- [ ] Generate a structured, editable timeline JSON plan.
+- [ ] Execute the ChatGPT-generated structured, editable timeline JSON plan.
 - [ ] Context-aware hook/title treatment without misrepresenting the source.
 - [ ] Accurate animated word-synchronized captions.
 - [ ] Purposeful transitions, zooms, punch-ins and motion graphics.
