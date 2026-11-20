@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from uuid import UUID
 
 import asyncpg
@@ -18,7 +19,15 @@ def _database_dsn() -> str:
     value = get_settings().database_url
     if not value:
         raise RuntimeError("DATABASE_URL is not configured")
-    return value.replace("postgresql+asyncpg://", "postgresql://", 1)
+
+    dsn = value.replace("postgresql+asyncpg://", "postgresql://", 1)
+    # asyncpg takes TLS as a separate argument rather than libpq's sslmode
+    # query parameter. Strip pooler hints that are not PostgreSQL URI options.
+    parts = urlsplit(dsn)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.pop("sslmode", None)
+    query.pop("pgbouncer", None)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
 async def get_pool() -> asyncpg.Pool:
@@ -37,6 +46,7 @@ async def get_pool() -> asyncpg.Pool:
                 min_size=1,
                 max_size=8,
                 command_timeout=30,
+                # Supabase transaction pooler compatibility.
                 statement_cache_size=0,
             )
         except (OSError, asyncpg.PostgresError, RuntimeError) as exc:
