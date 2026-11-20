@@ -75,7 +75,7 @@ The probe function downloads the exact private R2 object, runs ffprobe, computes
 - Resources: 1 CPU, 2 GiB RAM, 15-minute request timeout
 - Autoscaling with a short scale-down window
 
-The API verifies Supabase JWTs, checks workspace membership, handles upload-session state and signs R2 multipart requests. It never proxies video bytes.
+The API verifies the private operator bearer token, checks workspace membership, handles upload-session state, signs R2 multipart requests and dispatches the Modal analysis function. It never proxies video bytes.
 
 ## Database connection string
 

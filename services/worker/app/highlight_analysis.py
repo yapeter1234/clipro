@@ -50,6 +50,4 @@ def parse_highlights(response: str, *, duration_ms: int, limit: int = 12) -> lis
         selected.append(candidate)
         if len(selected) >= limit:
             break
-    if not selected:
-        raise HighlightAnalysisError("The model did not identify any valid highlight moments.")
     return sorted(selected, key=lambda item: item["start_ms"])

@@ -356,7 +356,7 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
               {processingJob && (
                 <div className="asset-actions">
                   <button type="button" onClick={refreshProcessingStatus}>Refresh</button>
-                  {processingJob.dispatch_error && processingJob.status !== "succeeded" && (
+                  {(processingJob.dispatch_error || processingJob.status === "failed") && processingJob.status !== "succeeded" && (
                     <button type="button" onClick={retryProcessing}>Retry processing</button>
                   )}
                 </div>
@@ -374,6 +374,7 @@ export default function UploadStudio({ workspaceId }: { workspaceId: string }) {
           {processingJob?.job_type === "highlight_analysis" && processingJob.status === "succeeded" && (
             <div className="analysis-results">
               <div className="analysis-results-heading"><strong>AI-selected moments</strong><span>{processingJob.result?.highlights?.length ?? 0} candidates</span></div>
+              {(processingJob.result?.highlights ?? []).length === 0 && <p className="analysis-empty">No strong moments were identified. You can retry the analysis or upload another section of footage.</p>}
               {(processingJob.result?.highlights ?? []).map((highlight, index) => (
                 <article className="highlight-card" key={highlight.start_ms}>
                   <div className="highlight-card-top"><span>#{index + 1} · {Math.floor(highlight.start_ms / 60000)}:{String(Math.floor((highlight.start_ms % 60000) / 1000)).padStart(2, "0")} – {Math.floor(highlight.end_ms / 60000)}:{String(Math.floor((highlight.end_ms % 60000) / 1000)).padStart(2, "0")}</span><strong>{highlight.score.toFixed(1)}/10</strong></div>
