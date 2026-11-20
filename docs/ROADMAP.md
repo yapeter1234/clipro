@@ -77,3 +77,12 @@
 - Unofficial playback extraction.
 - Always-on livestream monitoring in initial manual-source workflow.
 - Engagement/audience guarantees.
+
+
+## M2 implementation update
+
+The first Modal-backed highlight-analysis path is now implemented in code: local Whisper
+transcription, sampled-frame visual analysis with Qwen2.5-VL-3B-Instruct, validated ranked
+timestamp candidates, a durable processing job, and dashboard result display. This is not yet
+deployed or end-to-end verified. Rendering, precise candidate-boundary refinement, caption
+generation, and the review/export flow remain next.

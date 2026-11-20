@@ -88,3 +88,17 @@ From the Supabase Connect dialog, choose the Session pooler connection string wh
 - Keep the bucket private and use short-lived presigned URLs.
 - Keep API token and R2/Postgres credentials out of the Next.js public environment.
 - Do not enable always-on live stream monitoring in the manual-capture MVP.
+
+
+## AI highlight analysis
+
+The \`analyze_asset\` Modal function is deployed with the same worker command as \`probe_asset\`.
+It runs on a T4 GPU, downloads Qwen2.5-VL-3B-Instruct on first use, transcribes audio locally
+with faster-whisper small, samples up to 18 frames, and writes ranked candidate timestamps to
+the \`highlight_analysis\` processing job. The browser dashboard starts this job after media
+validation and displays its results. No hosted model API key is required.
+
+Apply the new migration \`supabase/migrations/202611200001_highlight_analysis.sql\` before
+starting analysis jobs. Set \`CLIPRO_MODAL_ANALYSIS_FUNCTION=analyze_asset\` in the API
+environment (the code default is already this value). Deploy the worker and API, then set
+\`CLIPRO_MODAL_DISPATCH_ENABLED=true\` in the API secret to enable job dispatch.
