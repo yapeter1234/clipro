@@ -2,53 +2,51 @@
 
 ## Product scope
 
-Clipro is a private, single-operator AI clipping and video-editing workspace. There is one operator and no public registration, multi-user workspaces, invitations, roles, billing or public creator-facing accounts. ChatGPT in this conversation is the editorial brain; Clipro supplies media-processing and rendering tools. The initial workflow does not use a separate generative-model API or the user's ChatGPT subscription as an API credential. The operator explicitly hands analysis artifacts into this conversation and brings the resulting edit-plan JSON back into Clipro.
-
-The first campaign is DiegoLoveless's Twitch GTA campaign. The system must still support other creator profiles, campaigns, platforms and generic uploaded videos without changing the editing engine.
+Clipro is a private, single-operator AI clipping and video-editing workspace. There is one operator and no public registration, teams, invitations, roles or billing. An AI agent integrated into Clipro analyzes source videos, selects moments, builds edit plans and orchestrates safe editing tools. The first campaign is DiegoLoveless's Twitch GTA campaign; the editing engine remains generic for other creators, platforms, campaigns and ordinary uploaded videos.
 
 ## Core principles
 
 - One private operator; no public SaaS account model.
-- Hosted UI/API protected by an allowlisted private access layer (Cloudflare Access or equivalent).
-- Platform-native capture and editing are separate.
-- Public stream URLs/chat access are not raw media downloads.
-- Use official viewer capture tools or creator-authorized media files.
+- Hosted UI/API has a simple private access restriction.
+- Use permitted viewer-created clips or creator/campaign-authorized source files.
 - Never bypass access controls or use undocumented playback extraction.
-- A source file must be explicitly supplied before processing.
-- Clipro never publishes; finished videos are downloaded and posted manually.
-- Creator, campaign and style profiles are data, not hard-coded editor logic.
-- Live clips, VOD excerpts and ordinary uploaded videos use the same editor/render pipeline.
+- A source file must be supplied before processing.
+- AI selects moments and plans edits; deterministic tools perform the actual media transformations.
+- Clipro never publishes; finished videos are delivered privately for manual approval/download.
+- Creator, campaign and style profiles are configurable data, not hard-coded editor logic.
 
 ## System boundaries
 
 ### Private browser app
 
-- No sign-up, invite, team or user-management screens.
-- One default private library and one operator-owned project history.
-- Choose/create streamer, campaign and style profiles.
-- Choose platform (Twitch/Kick/YouTube) and source type.
-- Display supported manual capture/download instructions.
-- Upload source files with resumable multipart transfer.
-- Show source metadata, processing status and downloadable analysis pack (timestamped transcript, audio cues, candidate ranges and visual contact sheets).
-- Import a ChatGPT-generated, schema-validated edit-plan JSON.
-- Show a rendered preview and QA report; support operator-directed revisions.
-- Preview, approve/reject/regenerate and download final MP4, captions and timeline JSON.
-- Later: multi-track manual editing and post-publish metrics entered by the operator.
+- No sign-up, teams or user-management screens.
+- One private project/library history.
+- Upload permitted source media; choose creator/campaign/style presets.
+- Show analysis progress, candidate highlights, edit plan and quality report.
+- Preview candidate segments and finished render.
+- Allow operator to accept, reject or request revisions.
+- Download final MP4 and project/timeline data.
 - No social publishing integration.
-
-### Private access layer
-
-The browser application and API must be inaccessible to anonymous internet users. Prefer Cloudflare Access with an allowlist containing only the operator's identity. Protect both the web app and API hostname. The API must verify the access-layer identity assertion (for example, Cloudflare Access JWT) or use an equivalent server-side authentication mechanism; CORS alone is not authentication. Do not simply remove API authentication or expose a shared secret in browser JavaScript.
 
 ### Control plane
 
-FastAPI owns source validation, media metadata, uploads, job lifecycle, editorial-plan state, rendering status, approvals and download authorization. Use a single-operator data model: no workspace membership joins or user IDs are needed for ordinary asset ownership. Keep a server-generated private project/library identifier if useful for grouping assets.
+FastAPI owns upload validation, source metadata, job lifecycle, AI-agent tool orchestration, timeline validation, rendering status, review and download authorization. Use a single-operator data model; no workspace membership tables or user IDs are required.
+
+### Agent / model gateway
+
+Use a provider-neutral model adapter. Initial candidate: Google Gemini 3.8 Flash, which accepts video files directly, understands audio and visual content, and can return timestamped descriptions. Its video-input free tier currently supports Files API uploads up to 2 GB. Rate limits are model/project/account dependent and may change.
+
+- Store the Gemini API key only in Modal Secret / server environment.
+- Upload only the selected source or analysis proxy to the provider; never expose provider keys in the browser.
+- Prefer agentic video processing for long VOD discovery; use targeted, higher-density frame extraction for rapid gameplay and candidate verification.
+- Use static video processing for short clips when a uniform overview is useful.
+- Require JSON-schema-constrained output with candidate time ranges, narrative/context, confidence, rationale, campaign-fit checks and exact edit instructions.
+- Agent tool calls are allowlisted and typed. Tools include inspect frames/ranges, create preview cut, generate captions, apply overlays/layout, render, inspect QA and request revision.
+- The agent cannot execute arbitrary shell commands, arbitrary URLs, social publication or destructive storage actions.
 
 ### Data plane
 
-Modal workers own media probing, proxy generation, speech transcription, VAD/audio feature extraction, visual sampling, contact-sheet and analysis-pack generation, and deterministic rendering. ChatGPT in this conversation performs the editorial reasoning from the analysis pack and returns an edit-plan JSON for the operator to import. Do not call a separate LLM API in the initial release. Workers receive exact server-selected object keys and job IDs; never fetch arbitrary user-provided URLs.
-
-For long VOD files, use chunked analysis and low-resolution proxy sampling. Never load an entire multi-hour source into RAM.
+Modal workers own ffprobe validation, proxy generation, transcription, audio/VAD signals, scene/visual sampling, Gemini calls, candidate extraction, timeline execution, rendering and QA. The agent provides decisions; FFmpeg/Remotion and other deterministic processors execute them.
 
 ## Source abstraction
 
@@ -68,67 +66,66 @@ Acquisition modes:
 1. `viewer_native_clip_manual_download`: operator creates and downloads a native Twitch or Kick clip and uploads it.
 2. `authorized_source_file`: creator/campaign supplies a video or excerpt.
 3. `youtube_clip_reference`: stores a YouTube Clip URL only; no raw media processing until an authorized source file is uploaded.
-4. `creator_relay`: future optional creator-owned RTMPS/SRT feed.
-5. `unsupported`: no source file or permitted acquisition route.
+4. `unsupported`: no source file or permitted acquisition route.
 
 The renderer accepts files/assets, not arbitrary platform URLs. Arbitrary URL fetching is disabled.
 
-## Platform source handling
+## Video understanding and highlight selection
 
-### Twitch
-Use permitted viewer-native clips created and downloaded manually when channel settings allow. Do not assume Editor permissions or invoke Editor-only APIs for the current campaign.
+1. Validate the file with ffprobe and create a low-resolution proxy where appropriate.
+2. Run transcription with word-level timestamps; extract audio energy, speech/activity and scene-change signals.
+3. Send the video/proxy and campaign instructions to Gemini through the server-side provider adapter.
+4. For long VODs, use agentic navigation to locate promising ranges without uniformly tokenizing every frame. For short clips, process the full clip and inspect the most important subranges.
+5. Because fast GTA gameplay may change materially between one-second samples, use local scene/motion/audio signals and denser frame sampling around candidate moments; ask the agent to inspect those exact ranges before final selection.
+6. Agent returns ranked moments with start/end timestamps, hook/payoff, what happens, why it works, creator-safe editorial notes and campaign compliance.
+7. A second validation pass checks transcript alignment, cut boundaries, source continuity, duplicates, duration and campaign rules.
 
-### Kick
-Use permitted viewer-native clips created and downloaded manually when available. Do not assume channel-owner VOD download privileges.
+Gemini's free tier is suitable for a first prototype, not a contractual production capacity guarantee. Its unpaid terms allow Google to use submitted content to improve products and may involve human review. Do not send sensitive, confidential, private or unreleased material under the unpaid tier. For footage that must remain private, use a paid tier whose terms exclude product-improvement use or a self-hosted model. Model availability, quotas and provider terms must be checked before deployment.
 
-### YouTube
-A YouTube Clip URL is a reference, not a general MP4 download endpoint. Custom editing requires an authorized video file.
+## Editing-agent tool loop
 
-## ChatGPT-directed editorial and rendering pipeline
-
-1. Probe the supplied source, validate codecs/duration and create safe low-resolution proxies.
-2. Generate word-timestamped speech transcription, audio/VAD cues, scene-change information and sampled visual frames.
-3. For long videos, scan in bounded chunks and generate ranked technical candidates; for short native clips, analyze the full clip.
-4. Package the transcript, candidate timestamps, relevant frame contact sheets and campaign/style brief into an analysis pack that can be attached to this ChatGPT conversation.
-5. ChatGPT reviews the supplied evidence, applies campaign/style rules, selects the strongest moment(s), explains the editorial rationale and returns a structured edit-plan JSON. This is a human-in-the-loop chat handoff, not an API call from Clipro to ChatGPT.
-6. The operator imports the edit-plan JSON into Clipro. The app validates it against the timeline schema and effect allowlist.
-7. The deterministic render workers apply cuts, captions, overlays, motion graphics, reframing, audio mixing and any configured licensed assets.
-8. Automated technical/caption/audio checks create a QA report and preview.
-9. The operator shares the preview/report in this conversation for ChatGPT editorial review, then requests changes or downloads the final result.
+1. Build a candidate shortlist from AI and local media signals.
+2. Agent chooses the strongest moment(s) and creates an edit plan in the versioned timeline schema.
+3. Validate every timestamp against source duration, every asset reference against approved storage, and every effect against an allowlist.
+4. Tools create a low-resolution draft with requested trims, hook, animated captions, gameplay/facecam layout, reframing, zooms, transitions, music/SFX and audio ducking.
+5. Rendered draft plus frame samples and QA metadata are returned to the agent for review.
+6. Agent may request a bounded number of revisions; all iterations are recorded.
+7. Final high-quality render is produced with FFmpeg/Remotion and delivered as a private downloadable MP4 plus captions and QA report.
+8. Operator retains the ability to approve or reject; no publish action exists.
 
 Never invent quotes, fake reactions or alter chronology to misrepresent events. For Diego, never make the creator look bad; prioritize GTA speedrun highlights, funny moments and genuine reactions.
 
 ## Campaign profiles
 
-Campaign profiles are configurable data and can define creator/channel, allowed platforms and source types, date windows, game/topic, must-show rules, CTA, caption language, hashtags, editing style, duration/aspect ratio, retention targets, reference assets and duplicate/reuse limits.
+Campaign profiles define creator/channel, allowed platforms and source types, date windows, game/topic, must-show rules, CTA, caption language, hashtags, editing style, duration/aspect ratio, retention targets, reference assets and duplicate/reuse limits.
 
 Diego's GTA campaign is the first preset, not a global hard-coded rule. Other campaigns must not inherit Diego-specific restrictions.
 
 ## Timeline and rendering
 
-Use the versioned schema in `packages/timeline/schema.json`. Remotion creates reusable compositions (animated captions, overlays, motion graphics, transitions, layouts and end cards); FFmpeg handles probing, trimming, composition inputs, audio mixing and final encoding. Verify Remotion license eligibility for the intended private/commercial use before production deployment.
+Use the versioned schema in `packages/timeline/schema.json`. Remotion creates reusable compositions (animated captions, overlays, motion graphics, transitions, layouts and end cards); FFmpeg handles probing, trimming, composition inputs, audio mixing and final encoding. Verify Remotion license eligibility for the intended use before production deployment.
 
 The same renderer serves stream clips, uploaded VOD excerpts and ordinary manual video projects.
 
 ## Storage and security
 
-- Store media in private object storage; keep only metadata and object keys in Postgres.
+- Store media in private object storage; keep only metadata and object keys in the metadata store.
 - Use short-lived upload/download URLs and server-generated object keys.
-- Protect web app and API with a real private access layer; CORS is not access control.
-- Verify the access-layer identity server-side on every API route.
-- Never expose database, R2 or Modal credentials in the browser.
+- Protect dashboard and API even though there is one operator; do not rely on obscurity alone.
+- Never expose database, R2, Modal or Gemini credentials in the browser.
 - Treat transcripts, chat, titles and comments as untrusted data.
-- Validate ChatGPT-produced edit plans against JSON Schema and an effect allowlist before rendering.
+- Validate agent output against JSON Schema and an effect/tool allowlist.
 - Never interpolate untrusted text into shell commands.
-- Do not request platform passwords, stream keys or credentials.
-- Require explicit operator review; publishing functionality is absent.
-- Apply configurable retention and cleanup for source, proxy and rejected output files.
+- Do not request platform passwords or stream keys.
+- Require operator review; publishing functionality is absent.
+- Apply retention and cleanup for source, proxy and rejected output files.
 
 ## Cost strategy
 
-- Start with short native clips; add full VOD chunking after the short-clip pipeline is reliable.
-- Use low-resolution proxy analysis and sparse visual sampling before expensive high-quality rendering.
-- Use CPU for probe/segmentation/simple transforms; GPU only where it materially improves quality or throughput.
-- Use speech transcription and media-analysis tools for evidence generation; ChatGPT performs editorial reasoning through the conversation. No separate generative AI API key is required for the initial workflow.
-- Optional API-based automation can be considered later only if the operator explicitly wants unattended editorial decisions.
-- No always-on stream monitoring in the manual-capture workflow.
+- Start with short native clips; add long-VOD chunking after short-clip quality is reliable.
+- Use Gemini 3.8 Flash free quota for prototype testing only, with explicit acknowledgement of provider data-use terms.
+- Keep provider calls bounded and inspect the account's live quota before batches.
+- Use low-resolution proxies and selective visual inspection to reduce inference cost.
+- Use CPU for probe, transcription and straightforward rendering; use GPU only if a specific model needs it.
+- Add paid API or self-hosted inference only when free limits or privacy requirements justify it.
+- No always-on stream monitoring in the initial manual-source workflow.
